@@ -439,8 +439,9 @@ func (l *lexer) scanNumber() bool {
 }
 
 // isSpace reports whether r is a space character.
+// space characters are: space, tab, carriage-return (\r), line feed (\n), and comma
 func isSpace(r rune) bool {
-	return r == ' ' || r == '\t' || r == '\n' || r == '\r'
+	return r == ' ' || r == '\t' || r == '\n' || r == '\r' || r == ','
 }
 
 // isEndOfLine reports whether r is an end-of-line character.

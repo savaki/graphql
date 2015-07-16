@@ -6,18 +6,15 @@ import (
 	. "github.com/smartystreets/goconvey/convey"
 )
 
-func TestLexQuery(t *testing.T) {
-	type testCase struct {
-		text  string
-		wants []item
-	}
-
-	tests := []testCase{
-		{`query sample {
+func TestLexSimple(t *testing.T) {
+	Convey("Verify #lex on simple grammar", t, func() {
+		l := lex("simple", `query sample {
 			user(id: 4) {
 				firstName
 			}
-		}`, []item{
+		}`)
+
+		wants := []item{
 			{typ: itemQueryKeyword},
 			{typ: itemSpace},
 			{typ: itemQueryName, val: "sample"},
@@ -40,23 +37,21 @@ func TestLexQuery(t *testing.T) {
 			{typ: itemSpace},
 			{typ: itemQueryEnd},
 			{typ: itemEOF},
-		}},
-
-		{"querysample", []item{
-			{typ: itemQueryKeyword},
-			{typ: itemError},
-		}},
-
-		{"", []item{
-			{typ: itemEOF},
-		}},
-	}
-
-	Convey("Verify the lexer parses graphql", t, func() {
-		for _, test := range tests {
-			l := lex("sample", test.text)
-			VerifyWants(l, test.wants)
 		}
+
+		VerifyWants(l, wants)
+	})
+}
+
+func TestLexEmpty(t *testing.T) {
+	Convey("Verify #lex on empty grammar", t, func() {
+		l := lex("simple", ``)
+
+		wants := []item{
+			{typ: itemEOF},
+		}
+
+		VerifyWants(l, wants)
 	})
 }
 
