@@ -47,39 +47,25 @@ const (
 	itemLeftDelim  // left action delimiter
 	itemLeftParen  // '(' inside action
 	itemNumber     // simple number, including imaginary
-	itemPipe       // pipe symbol
 	itemRawString  // raw quoted string (includes quotes)
 	itemRightDelim // right action delimiter
 	itemRightParen // ')' inside action
 	itemSpace      // run of spaces separating arguments
 	itemString     // quoted string (includes quotes)
 	itemText       // plain text
-	itemVariable   // variable starting with '$', such as '$' or  '$1' or '$hello'
 
 	// ONLY KEYWORDS BELOW THIS POINT
 	itemKeyword  // used only to delimit the keywords
 	itemDot      // the cursor, spelled '.'
 	itemDefine   // define keyword
-	itemElse     // else keyword
-	itemEnd      // end keyword
-	itemIf       // if keyword
 	itemNil      // the untyped nil constant, easiest to treat as a keyword
-	itemRange    // range keyword
-	itemTemplate // template keyword
-	itemWith     // with keyword
 	itemQuery    // query keyword
 )
 
 var key = map[string]itemType{
 	".":        itemDot,
 	"define":   itemDefine,
-	"else":     itemElse,
-	"end":      itemEnd,
-	"if":       itemIf,
-	"range":    itemRange,
 	"nil":      itemNil,
-	"template": itemTemplate,
-	"with":     itemWith,
 	"query":    itemQuery,
 }
 
@@ -275,14 +261,10 @@ func lexInsideAction(l *lexer) stateFn {
 			return l.errorf("expected :=")
 		}
 		l.emit(itemColonEquals)
-	case r == '|':
-		l.emit(itemPipe)
 	case r == '"':
 		return lexQuote
 	case r == '`':
 		return lexRawQuote
-	case r == '$':
-		return lexVariable
 	case r == '\'':
 		return lexChar
 	case r == '.':
@@ -365,25 +347,11 @@ func lexField(l *lexer) stateFn {
 	return lexFieldOrVariable(l, itemField)
 }
 
-// lexVariable scans a Variable: $Alphanumeric.
-// The $ has been scanned.
-func lexVariable(l *lexer) stateFn {
-	if l.atTerminator() { // Nothing interesting follows -> "$".
-		l.emit(itemVariable)
-		return lexInsideAction
-	}
-	return lexFieldOrVariable(l, itemVariable)
-}
-
 // lexVariable scans a field or variable: [.$]Alphanumeric.
 // The . or $ has been scanned.
 func lexFieldOrVariable(l *lexer, typ itemType) stateFn {
 	if l.atTerminator() { // Nothing interesting follows -> "." or "$".
-		if typ == itemVariable {
-			l.emit(itemVariable)
-		} else {
 			l.emit(itemDot)
-		}
 		return lexInsideAction
 	}
 	var r rune
