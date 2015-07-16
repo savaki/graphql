@@ -41,41 +41,33 @@ const (
 	itemChar                         // printable ASCII character; grab bag for comma etc.
 	itemCharConstant                 // character constant
 	itemComplex                      // complex constant (1+2i); imaginary is just a number
-	itemColonEquals                  // colon-equals (':=') introducing a declaration
 	itemEOF
 	itemField         // alphanumeric identifier starting with '.'
 	itemIdentifier    // alphanumeric identifier not starting with '.'
+	itemQueryKeyword // query keyword
+	itemQueryName     // the name for a query
+	itemQueryField    // the field within the query
 	itemQueryBegin    // marks start of query block
 	itemQueryEnd      // marks end of query block
 	itemParamBegin    // '(' inside action
+	itemParamEnd      // ')' inside action
 	itemNumber        // simple number, including imaginary
 	itemRawString     // raw quoted string (includes quotes)
 	itemRightDelim    // right action delimiter
-	itemParamEnd      // ')' inside action
 	itemSpace         // run of spaces separating arguments
 	itemString        // quoted string (includes quotes)
 	itemText          // plain text
-	itemQueryName     // the name for a query
-	itemQueryField    // the field within the query
 	itemColon         // the : separating param name from param value
 	itemParamName     // the parameter name
 	itemSelectorBegin // marks the start of a selector block
 	itemSelectorEnd   // marks the end of a selector block
 	itemSelector      // marks the field we want returned
-	itemSign          // marks the +/- sign of a number
 
 	// ONLY KEYWORDS BELOW THIS POINT
 	itemKeyword      // used only to delimit the keywords
 	itemDot          // the cursor, spelled '.'
 	itemNil          // the untyped nil constant, easiest to treat as a keyword
-	itemQueryKeyword // query keyword
 )
-
-var key = map[string]itemType{
-	".":     itemDot,
-	"nil":   itemNil,
-	"query": itemQueryKeyword,
-}
 
 var keywords = map[itemType]string{
 	itemQueryKeyword: "query",
@@ -212,11 +204,8 @@ const (
 )
 
 const (
-	leftComment  = "/*"
-	rightComment = "*/"
 	whitespace   = " \t\n\r"
 	digits       = "0123456789"
-	nameFirst    = "_ABCDEFGHIJKLMNOPQRSTV"
 )
 
 func lexQuery(l *lexer) stateFn {
@@ -307,18 +296,20 @@ func lexQueryField(l *lexer) stateFn {
 }
 
 func lexQueryArgs(l *lexer) stateFn {
-	if r := l.peek(); isSpace(r) {
+	r := l.peek()
+	switch {
+	case isSpace(r):
 		l.acceptRun(whitespace)
 		l.emit(itemSpace)
 		return lexQueryArgs
 
-	} else if r == leftParen {
+	case r == leftParen:
 		return lexQueryLeftParen
 
-	} else if r == leftCurly {
+	case r == leftCurly:
 		return lexSelectorBegin
 
-	} else {
+	default:
 		return l.errorf("field name should be followed by arguments, whitespace, or a selector block")
 	}
 }
@@ -334,7 +325,6 @@ func lexQueryLeftParen(l *lexer) stateFn {
 
 func lexInsideParam(l *lexer) stateFn {
 	r := l.peek()
-
 	switch {
 	case isSpace(r):
 		l.acceptRun(whitespace)
@@ -473,6 +463,7 @@ func isNumeric(r rune) bool {
 	return strings.IndexRune(digits, r) >= 0
 }
 
+// isNumeric reports whether r is a signed value
 func isSign(r rune) bool {
 	return r == '-' || r == '+'
 }
