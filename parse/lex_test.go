@@ -55,6 +55,41 @@ func TestLexEmpty(t *testing.T) {
 	})
 }
 
+// @see https://news.ycombinator.com/item?id=8978936
+/*
+func TestLexHackerNews(t *testing.T) {
+	Convey("Verify #lex on hn grammar", t, func() {
+		l := lex("simple", `viewer() {
+    posts {
+      node {
+        author { id, name, favorite_color },
+        // any other post data you want
+      }
+    },
+    friends {
+      node {
+        id,
+        name,
+        favorite_color,
+      }
+    },
+    notifications {
+      node {
+        source { id, name, favorite_color },
+        // any other notification fields you want
+      }
+    },
+  }`)
+
+		wants := []item{
+			{typ: itemEOF},
+		}
+
+		VerifyWants(l, wants)
+	})
+}
+*/
+
 func VerifyWants(l *lexer, wants []item) {
 	for _, want := range wants {
 		item := l.nextItem()
