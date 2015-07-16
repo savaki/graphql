@@ -44,11 +44,11 @@ func (t *Tree) Copy() *Tree {
 // templates described in the argument string. The top-level template will be
 // given the specified name. If an error is encountered, parsing stops and an
 // empty map is returned with the error.
-func Parse(name, text string, funcs ...map[string]interface{}) (treeSet map[string]*Tree, err error) {
+func Parse(name, text string) (treeSet map[string]*Tree, err error) {
 	treeSet = make(map[string]*Tree)
 	t := New(name)
 	t.text = text
-	_, err = t.Parse(text, treeSet, funcs...)
+	_, err = t.Parse(text, treeSet)
 	return
 }
 
@@ -213,7 +213,7 @@ func (t *Tree) stopParse() {
 // the template for execution. If either action delimiter string is empty, the
 // default ("{{" or "}}") is used. Embedded template definitions are added to
 // the treeSet map.
-func (t *Tree) Parse(text string, treeSet map[string]*Tree, funcs ...map[string]interface{}) (tree *Tree, err error) {
+func (t *Tree) Parse(text string, treeSet map[string]*Tree) (tree *Tree, err error) {
 	defer t.recover(&err)
 
 	debug("starting parser")
