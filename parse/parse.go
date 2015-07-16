@@ -96,7 +96,7 @@ func (t *Tree) peek() item {
 func (t *Tree) nextNonSpace() (token item) {
 	for {
 		token = t.next()
-		if token.typ != itemSpace {
+		if token.itemType != itemSpace {
 			break
 		}
 	}
@@ -107,7 +107,7 @@ func (t *Tree) nextNonSpace() (token item) {
 func (t *Tree) peekNonSpace() (token item) {
 	for {
 		token = t.next()
-		if token.typ != itemSpace {
+		if token.itemType != itemSpace {
 			break
 		}
 	}
@@ -163,7 +163,7 @@ func (t *Tree) error(err error) {
 // expect consumes the next token and guarantees it has the required type.
 func (t *Tree) expect(expected itemType, context string) item {
 	token := t.nextNonSpace()
-	if token.typ != expected {
+	if token.itemType != expected {
 		t.unexpected(token, context)
 	}
 	return token
@@ -172,7 +172,7 @@ func (t *Tree) expect(expected itemType, context string) item {
 // expectOneOf consumes the next token and guarantees it has one of the required types.
 func (t *Tree) expectOneOf(expected1, expected2 itemType, context string) item {
 	token := t.nextNonSpace()
-	if token.typ != expected1 && token.typ != expected2 {
+	if token.itemType != expected1 && token.itemType != expected2 {
 		t.unexpected(token, context)
 	}
 	return token
@@ -268,17 +268,9 @@ func IsEmptyTree(n Node) bool {
 // It runs to EOF.
 func (t *Tree) parse(treeSet map[string]*Tree) (next Node) {
 	t.Root = t.newList(t.peek().pos)
-	for t.peek().typ != itemEOF {
-		if t.peek().typ == itemLeftDelim {
+	for t.peek().itemType != itemEOF {
+		if t.peek().itemType == itemLeftCurly {
 			delim := t.next()
-			if t.nextNonSpace().typ == itemDefine {
-				newT := New("definition") // name will be updated once we know it.
-				newT.text = t.text
-				newT.ParseName = t.ParseName
-				newT.startParse(t.lex)
-				newT.parseDefinition(treeSet)
-				continue
-			}
 			t.backup2(delim)
 		}
 		n := t.textOrAction()
@@ -316,7 +308,7 @@ func (t *Tree) parseDefinition(treeSet map[string]*Tree) {
 // Terminates at {{end}} or {{else}}, returned separately.
 func (t *Tree) itemList() (list *ListNode, next Node) {
 	list = t.newList(t.peekNonSpace().pos)
-	for t.peekNonSpace().typ != itemEOF {
+	for t.peekNonSpace().itemType != itemEOF {
 		n := t.textOrAction()
 		switch n.Type() {
 		case nodeEnd, nodeElse:
@@ -331,7 +323,7 @@ func (t *Tree) itemList() (list *ListNode, next Node) {
 // textOrAction:
 //	text | action
 func (t *Tree) textOrAction() Node {
-	switch token := t.nextNonSpace(); token.typ {
+	switch token := t.nextNonSpace(); token.itemType {
 	case itemText:
 		return t.newText(token.pos, token.val)
 	default:
@@ -359,7 +351,7 @@ func (t *Tree) command() *CommandNode {
 		if operand != nil {
 			cmd.append(operand)
 		}
-		switch token := t.next(); token.typ {
+		switch token := t.next(); token.itemType {
 		case itemSpace:
 			continue
 		case itemError:
@@ -387,9 +379,9 @@ func (t *Tree) operand() Node {
 	if node == nil {
 		return nil
 	}
-	if t.peek().typ == itemField {
+	if t.peek().itemType == itemField {
 		chain := t.newChain(t.peek().pos, node)
-		for t.peek().typ == itemField {
+		for t.peek().itemType == itemField {
 			chain.Add(t.next().val)
 		}
 		// Compatibility with original API: If the term is of type NodeField
@@ -418,7 +410,7 @@ func (t *Tree) operand() Node {
 // A term is a simple "expression".
 // A nil return means the next item is not a term.
 func (t *Tree) term() Node {
-	switch token := t.nextNonSpace(); token.typ {
+	switch token := t.nextNonSpace(); token.itemType {
 	case itemError:
 		t.errorf("%s", token.val)
 	case itemIdentifier:
@@ -432,7 +424,7 @@ func (t *Tree) term() Node {
 	case itemBool:
 		return t.newBool(token.pos, token.val == "true")
 	case itemCharConstant, itemComplex, itemNumber:
-		number, err := t.newNumber(token.pos, token.val, token.typ)
+		number, err := t.newNumber(token.pos, token.val, token.itemType)
 		if err != nil {
 			t.error(err)
 		}

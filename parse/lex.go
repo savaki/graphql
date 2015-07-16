@@ -12,18 +12,18 @@ import (
 
 // item represents a token or text string returned from the scanner.
 type item struct {
-	typ itemType // The type of this item.
-	pos Pos      // The starting position, in bytes, of this item in the input string.
-	val string   // The value of this item.
+	itemType itemType // The type of this item.
+	pos      Pos      // The starting position, in bytes, of this item in the input string.
+	val      string   // The value of this item.
 }
 
 func (i item) String() string {
 	switch {
-	case i.typ == itemEOF:
+	case i.itemType == itemEOF:
 		return "EOF"
-	case i.typ == itemError:
+	case i.itemType == itemError:
 		return i.val
-	case i.typ > itemKeyword:
+	case i.itemType > itemKeyword:
 		return fmt.Sprintf("<%s>", i.val)
 	case len(i.val) > 10:
 		return fmt.Sprintf("%.10q...", i.val)
@@ -31,6 +31,7 @@ func (i item) String() string {
 	return fmt.Sprintf("%q", i.val)
 }
 
+//go:generate stringer -type=itemType
 // itemType identifies the type of lex items.
 type itemType int
 
@@ -44,7 +45,7 @@ const (
 	itemEOF
 	itemField      // alphanumeric identifier starting with '.'
 	itemIdentifier // alphanumeric identifier not starting with '.'
-	itemLeftDelim  // left action delimiter
+	itemLeftCurly  // left action delimiter
 	itemLeftParen  // '(' inside action
 	itemNumber     // simple number, including imaginary
 	itemRawString  // raw quoted string (includes quotes)
@@ -53,20 +54,24 @@ const (
 	itemSpace      // run of spaces separating arguments
 	itemString     // quoted string (includes quotes)
 	itemText       // plain text
+	itemQueryName  // the name for a query
+	itemQueryField // the field within the query
 
 	// ONLY KEYWORDS BELOW THIS POINT
-	itemKeyword  // used only to delimit the keywords
-	itemDot      // the cursor, spelled '.'
-	itemDefine   // define keyword
-	itemNil      // the untyped nil constant, easiest to treat as a keyword
-	itemQuery    // query keyword
+	itemKeyword      // used only to delimit the keywords
+	itemDot          // the cursor, spelled '.'
+	itemNil          // the untyped nil constant, easiest to treat as a keyword
+	itemQueryKeyword // query keyword
 )
 
 var key = map[string]itemType{
-	".":        itemDot,
-	"define":   itemDefine,
-	"nil":      itemNil,
-	"query":    itemQuery,
+	".":     itemDot,
+	"nil":   itemNil,
+	"query": itemQueryKeyword,
+}
+
+var keywords = map[itemType]string{
+	itemQueryKeyword: "query",
 }
 
 const eof = -1
@@ -132,10 +137,23 @@ func (l *lexer) accept(valid string) bool {
 }
 
 // acceptRun consumes a run of runes from the valid set.
-func (l *lexer) acceptRun(valid string) {
+func (l *lexer) acceptRun(valid string) int {
+	count := 0
 	for strings.IndexRune(valid, l.next()) >= 0 {
+		count++
 	}
 	l.backup()
+	return count
+}
+
+// acceptFn consumes a run of runes matched by the valid validFn; returns length of run
+func (l *lexer) acceptFn(validFn func(rune) bool) int {
+	count := 0
+	for validFn(l.next()) {
+		count++
+	}
+	l.backup()
+	return count
 }
 
 // lineNumber reports which line we're on, based on the position of
@@ -172,7 +190,7 @@ func lex(name, input string) *lexer {
 
 // run runs the state machine for the lexer.
 func (l *lexer) run() {
-	for l.state = lexText; l.state != nil; {
+	for l.state = lexQuery; l.state != nil; {
 		l.state = l.state(l)
 	}
 }
@@ -183,38 +201,90 @@ const (
 	rightCurly   = "}"
 	leftComment  = "/*"
 	rightComment = "*/"
+	whitespace   = " \t\n"
+	nameFirst    = "_ABCDEFGHIJKLMNOPQRSTV"
 )
 
-// lexText scans until an opening action delimiter, "{{".
-func lexText(l *lexer) stateFn {
-	for {
-		if strings.HasPrefix(l.input[l.pos:], leftCurly) {
-			if l.pos > l.start {
-				l.emit(itemText)
-			}
-			return lexLeftDelim
-		}
-		if l.next() == eof {
-			break
-		}
+func lexQuery(l *lexer) stateFn {
+	if r := l.peek(); isSpace(r) {
+		l.accept(whitespace)
+		l.emit(itemSpace)
+		return lexQuery
+
+	} else if strings.HasPrefix(l.input[l.pos:], keywords[itemQueryKeyword]) {
+		return lexQueryKeyword
+
+	} else if r == eof {
+		l.emit(itemEOF)
+		return nil
+
+	} else {
+		return l.errorf("queries must begin with the query keyword")
 	}
-	// Correctly reached EOF.
-	if l.pos > l.start {
-		l.emit(itemText)
-	}
-	l.emit(itemEOF)
-	return nil
 }
 
-// lexLeftDelim scans the left delimiter, which is known to be present.
-func lexLeftDelim(l *lexer) stateFn {
-	l.pos += Pos(len(leftCurly))
-	if strings.HasPrefix(l.input[l.pos:], leftComment) {
-		return lexComment
+func lexQueryKeyword(l *lexer) stateFn {
+	l.pos += Pos(len(keywords[itemQueryKeyword]))
+	l.emit(itemQueryKeyword)
+
+	// query must be followed by at least one whitespace
+	if !l.accept(whitespace) {
+		return l.errorf("query keyword must be followed by a whitespace")
 	}
-	l.emit(itemLeftDelim)
-	l.parenDepth = 0
-	return lexInsideAction
+
+	l.acceptRun(whitespace) // skip any additional whitespace
+	l.emit(itemSpace)
+
+	return lexQueryName
+}
+
+func lexQueryName(l *lexer) stateFn {
+	if length := l.acceptFn(isAlpha); length == 0 {
+		return l.errorf("query name must begin with either an alphabet or an underscore")
+	}
+	l.acceptFn(isAlphaNumeric)
+	l.emit(itemQueryName)
+
+	// skip any whitespace
+	if count := l.acceptRun(whitespace); count > 0 {
+		l.emit(itemSpace)
+	}
+
+	return lexQueryLeftCurly
+}
+
+func lexQueryLeftCurly(l *lexer) stateFn {
+	if !l.accept(leftCurly) {
+		l.errorf("queries must begin with a %s", leftCurly)
+	}
+	l.emit(itemLeftCurly)
+
+	return lexInsideQuery
+}
+
+func lexInsideQuery(l *lexer) stateFn {
+	if r := l.peek(); isSpace(r) {
+		l.accept(whitespace)
+		l.emit(itemSpace)
+		return lexInsideQuery
+
+	} else if isAlpha(r) {
+		return lexQueryField
+
+	} else {
+		return l.errorf("no field specified within query")
+	}
+}
+
+// we've already peeked so we know the first character is an alpha
+func lexQueryField(l *lexer) stateFn {
+	l.acceptFn(isAlpha)
+	l.acceptFn(isAlphaNumeric)
+	l.emit(itemQueryField)
+
+	// we're up to here
+	l.emit(itemEOF)
+	return nil
 }
 
 // lexComment scans a comment. The left comment marker is known to be present.
@@ -230,14 +300,14 @@ func lexComment(l *lexer) stateFn {
 	}
 	l.pos += Pos(len(rightCurly))
 	l.ignore()
-	return lexText
+	return lexQuery
 }
 
 // lexRightDelim scans the right delimiter, which is known to be present.
 func lexRightDelim(l *lexer) stateFn {
 	l.pos += Pos(len(rightCurly))
 	l.emit(itemRightDelim)
-	return lexText
+	return lexQuery
 }
 
 // lexInsideAction scans the elements inside action delimiters.
@@ -351,7 +421,7 @@ func lexField(l *lexer) stateFn {
 // The . or $ has been scanned.
 func lexFieldOrVariable(l *lexer, typ itemType) stateFn {
 	if l.atTerminator() { // Nothing interesting follows -> "." or "$".
-			l.emit(itemDot)
+		l.emit(itemDot)
 		return lexInsideAction
 	}
 	var r rune
@@ -487,7 +557,7 @@ Loop:
 
 // isSpace reports whether r is a space character.
 func isSpace(r rune) bool {
-	return r == ' ' || r == '\t'
+	return r == ' ' || r == '\t' || r == '\n'
 }
 
 // isEndOfLine reports whether r is an end-of-line character.
@@ -498,4 +568,9 @@ func isEndOfLine(r rune) bool {
 // isAlphaNumeric reports whether r is an alphabetic, digit, or underscore.
 func isAlphaNumeric(r rune) bool {
 	return r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r)
+}
+
+// isNameStart reports whether r is an alphabetic or underscore
+func isAlpha(r rune) bool {
+	return r == '_' || unicode.IsLetter(r)
 }

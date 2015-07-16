@@ -6,7 +6,7 @@ import (
 	. "github.com/smartystreets/goconvey/convey"
 )
 
-func ATestNumeric(t *testing.T) {
+func TestNumeric(t *testing.T) {
 	type numberTest struct {
 		text    string
 		isInt   bool
