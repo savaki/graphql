@@ -269,7 +269,7 @@ func IsEmptyTree(n Node) bool {
 func (t *Tree) parse(treeSet map[string]*Tree) (next Node) {
 	t.Root = t.newList(t.peek().pos)
 	for t.peek().typ != itemEOF {
-		if t.peek().typ == itemLeftCurly {
+		if t.peek().typ == itemQueryBegin {
 			delim := t.next()
 			t.backup2(delim)
 		}
@@ -356,7 +356,7 @@ func (t *Tree) command() *CommandNode {
 			continue
 		case itemError:
 			t.errorf("%s", token.val)
-		case itemRightDelim, itemRightParen:
+		case itemRightDelim, itemParamEnd:
 			t.backup()
 		default:
 			t.errorf("unexpected %s in operand; missing space?", token)

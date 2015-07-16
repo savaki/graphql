@@ -13,14 +13,32 @@ func TestLexQuery(t *testing.T) {
 	}
 
 	tests := []testCase{
-		{"query sample { user(", []item{
+		{`query sample {
+			user(id: 4) {
+				firstName
+			}
+		}`, []item{
 			{typ: itemQueryKeyword},
 			{typ: itemSpace},
 			{typ: itemQueryName, val: "sample"},
 			{typ: itemSpace},
-			{typ: itemLeftCurly},
+			{typ: itemQueryBegin},
 			{typ: itemSpace},
 			{typ: itemQueryField, val: "user"},
+			{typ: itemParamBegin},
+			{typ: itemParamName, val: "id"},
+			{typ: itemColon},
+			{typ: itemSpace},
+			{typ: itemNumber, val: "4"},
+			{typ: itemParamEnd},
+			{typ: itemSpace},
+			{typ: itemSelectorBegin},
+			{typ: itemSpace},
+			{typ: itemSelector, val: "firstName"},
+			{typ: itemSpace},
+			{typ: itemSelectorEnd},
+			{typ: itemSpace},
+			{typ: itemQueryEnd},
 			{typ: itemEOF},
 		}},
 

@@ -43,19 +43,26 @@ const (
 	itemComplex                      // complex constant (1+2i); imaginary is just a number
 	itemColonEquals                  // colon-equals (':=') introducing a declaration
 	itemEOF
-	itemField      // alphanumeric identifier starting with '.'
-	itemIdentifier // alphanumeric identifier not starting with '.'
-	itemLeftCurly  // left action delimiter
-	itemLeftParen  // '(' inside action
-	itemNumber     // simple number, including imaginary
-	itemRawString  // raw quoted string (includes quotes)
-	itemRightDelim // right action delimiter
-	itemRightParen // ')' inside action
-	itemSpace      // run of spaces separating arguments
-	itemString     // quoted string (includes quotes)
-	itemText       // plain text
-	itemQueryName  // the name for a query
-	itemQueryField // the field within the query
+	itemField         // alphanumeric identifier starting with '.'
+	itemIdentifier    // alphanumeric identifier not starting with '.'
+	itemQueryBegin    // marks start of query block
+	itemQueryEnd      // marks end of query block
+	itemParamBegin    // '(' inside action
+	itemNumber        // simple number, including imaginary
+	itemRawString     // raw quoted string (includes quotes)
+	itemRightDelim    // right action delimiter
+	itemParamEnd      // ')' inside action
+	itemSpace         // run of spaces separating arguments
+	itemString        // quoted string (includes quotes)
+	itemText          // plain text
+	itemQueryName     // the name for a query
+	itemQueryField    // the field within the query
+	itemColon         // the : separating param name from param value
+	itemParamName     // the parameter name
+	itemSelectorBegin // marks the start of a selector block
+	itemSelectorEnd   // marks the end of a selector block
+	itemSelector      // marks the field we want returned
+	itemSign          // marks the +/- sign of a number
 
 	// ONLY KEYWORDS BELOW THIS POINT
 	itemKeyword      // used only to delimit the keywords
@@ -197,11 +204,18 @@ func (l *lexer) run() {
 
 // state functions
 const (
-	leftCurly    = "{"
-	rightCurly   = "}"
+	colon      = ':'
+	leftParen  = '('
+	rightParen = ')'
+	leftCurly  = '{'
+	rightCurly = '}'
+)
+
+const (
 	leftComment  = "/*"
 	rightComment = "*/"
-	whitespace   = " \t\n"
+	whitespace   = " \t\n\r"
+	digits       = "0123456789"
 	nameFirst    = "_ABCDEFGHIJKLMNOPQRSTV"
 )
 
@@ -250,28 +264,35 @@ func lexQueryName(l *lexer) stateFn {
 		l.emit(itemSpace)
 	}
 
-	return lexQueryLeftCurly
+	return lexQueryBegin
 }
 
-func lexQueryLeftCurly(l *lexer) stateFn {
-	if !l.accept(leftCurly) {
+func lexQueryBegin(l *lexer) stateFn {
+	if l.next() != leftCurly {
 		l.errorf("queries must begin with a %s", leftCurly)
 	}
-	l.emit(itemLeftCurly)
+	l.emit(itemQueryBegin)
 
 	return lexInsideQuery
 }
 
 func lexInsideQuery(l *lexer) stateFn {
-	if r := l.peek(); isSpace(r) {
-		l.accept(whitespace)
+	r := l.peek()
+	switch {
+	case isSpace(r):
+		l.acceptRun(whitespace)
 		l.emit(itemSpace)
 		return lexInsideQuery
 
-	} else if isAlpha(r) {
+	case isAlpha(r):
 		return lexQueryField
 
-	} else {
+	case r == rightCurly:
+		l.next()
+		l.emit(itemQueryEnd)
+		return lexQuery
+
+	default:
 		return l.errorf("no field specified within query")
 	}
 }
@@ -282,231 +303,146 @@ func lexQueryField(l *lexer) stateFn {
 	l.acceptFn(isAlphaNumeric)
 	l.emit(itemQueryField)
 
-	// we're up to here
-	l.emit(itemEOF)
-	return nil
+	return lexQueryArgs
 }
 
-// lexComment scans a comment. The left comment marker is known to be present.
-func lexComment(l *lexer) stateFn {
-	l.pos += Pos(len(leftComment))
-	i := strings.Index(l.input[l.pos:], rightComment)
-	if i < 0 {
-		return l.errorf("unclosed comment")
-	}
-	l.pos += Pos(i + len(rightComment))
-	if !strings.HasPrefix(l.input[l.pos:], rightCurly) {
-		return l.errorf("comment ends before closing delimiter")
-	}
-	l.pos += Pos(len(rightCurly))
-	l.ignore()
-	return lexQuery
-}
+func lexQueryArgs(l *lexer) stateFn {
+	if r := l.peek(); isSpace(r) {
+		l.acceptRun(whitespace)
+		l.emit(itemSpace)
+		return lexQueryArgs
 
-// lexRightDelim scans the right delimiter, which is known to be present.
-func lexRightDelim(l *lexer) stateFn {
-	l.pos += Pos(len(rightCurly))
-	l.emit(itemRightDelim)
-	return lexQuery
-}
+	} else if r == leftParen {
+		return lexQueryLeftParen
 
-// lexInsideAction scans the elements inside action delimiters.
-func lexInsideAction(l *lexer) stateFn {
-	// Either number, quoted string, or identifier.
-	// Spaces separate arguments; runs of spaces turn into itemSpace.
-	// Pipe symbols separate and are emitted.
-	if strings.HasPrefix(l.input[l.pos:], rightCurly) {
-		if l.parenDepth == 0 {
-			return lexRightDelim
-		}
-		return l.errorf("unclosed left paren")
-	}
-	switch r := l.next(); {
-	case r == eof || isEndOfLine(r):
-		return l.errorf("unclosed action")
-	case isSpace(r):
-		return lexSpace
-	case r == ':':
-		if l.next() != '=' {
-			return l.errorf("expected :=")
-		}
-		l.emit(itemColonEquals)
-	case r == '"':
-		return lexQuote
-	case r == '`':
-		return lexRawQuote
-	case r == '\'':
-		return lexChar
-	case r == '.':
-		// special look-ahead for ".field" so we don't break l.backup().
-		if l.pos < Pos(len(l.input)) {
-			r := l.input[l.pos]
-			if r < '0' || '9' < r {
-				return lexField
-			}
-		}
-		fallthrough // '.' can start a number.
-	case r == '+' || r == '-' || ('0' <= r && r <= '9'):
-		l.backup()
-		return lexNumber
-	case isAlphaNumeric(r):
-		l.backup()
-		return lexIdentifier
-	case r == '(':
-		l.emit(itemLeftParen)
-		l.parenDepth++
-		return lexInsideAction
-	case r == ')':
-		l.emit(itemRightParen)
-		l.parenDepth--
-		if l.parenDepth < 0 {
-			return l.errorf("unexpected right paren %#U", r)
-		}
-		return lexInsideAction
-	case r <= unicode.MaxASCII && unicode.IsPrint(r):
-		l.emit(itemChar)
-		return lexInsideAction
-	default:
-		return l.errorf("unrecognized character in action: %#U", r)
-	}
-	return lexInsideAction
-}
+	} else if r == leftCurly {
+		return lexSelectorBegin
 
-// lexSpace scans a run of space characters.
-// One space has already been seen.
-func lexSpace(l *lexer) stateFn {
-	for isSpace(l.peek()) {
-		l.next()
-	}
-	l.emit(itemSpace)
-	return lexInsideAction
-}
-
-// lexIdentifier scans an alphanumeric.
-func lexIdentifier(l *lexer) stateFn {
-Loop:
-	for {
-		switch r := l.next(); {
-		case isAlphaNumeric(r):
-		// absorb.
-		default:
-			l.backup()
-			word := l.input[l.start:l.pos]
-			if !l.atTerminator() {
-				return l.errorf("bad character %#U", r)
-			}
-			switch {
-			case key[word] > itemKeyword:
-				l.emit(key[word])
-			case word[0] == '.':
-				l.emit(itemField)
-			case word == "true", word == "false":
-				l.emit(itemBool)
-			default:
-				l.emit(itemIdentifier)
-			}
-			break Loop
-		}
-	}
-	return lexInsideAction
-}
-
-// lexField scans a field: .Alphanumeric.
-// The . has been scanned.
-func lexField(l *lexer) stateFn {
-	return lexFieldOrVariable(l, itemField)
-}
-
-// lexVariable scans a field or variable: [.$]Alphanumeric.
-// The . or $ has been scanned.
-func lexFieldOrVariable(l *lexer, typ itemType) stateFn {
-	if l.atTerminator() { // Nothing interesting follows -> "." or "$".
-		l.emit(itemDot)
-		return lexInsideAction
-	}
-	var r rune
-	for {
-		r = l.next()
-		if !isAlphaNumeric(r) {
-			l.backup()
-			break
-		}
-	}
-	if !l.atTerminator() {
-		return l.errorf("bad character %#U", r)
-	}
-	l.emit(typ)
-	return lexInsideAction
-}
-
-// atTerminator reports whether the input is at valid termination character to
-// appear after an identifier. Breaks .X.Y into two pieces. Also catches cases
-// like "$x+2" not being acceptable without a space, in case we decide one
-// day to implement arithmetic.
-func (l *lexer) atTerminator() bool {
-	r := l.peek()
-	if isSpace(r) || isEndOfLine(r) {
-		return true
-	}
-	switch r {
-	case eof, '.', ',', '|', ':', ')', '(':
-		return true
-	}
-	// Does r start the delimiter? This can be ambiguous (with delim=="//", $x/2 will
-	// succeed but should fail) but only in extremely rare cases caused by willfully
-	// bad choice of delimiter.
-	if rd, _ := utf8.DecodeRuneInString(rightCurly); rd == r {
-		return true
-	}
-	return false
-}
-
-// lexChar scans a character constant. The initial quote is already
-// scanned. Syntax checking is done by the parser.
-func lexChar(l *lexer) stateFn {
-Loop:
-	for {
-		switch l.next() {
-		case '\\':
-			if r := l.next(); r != eof && r != '\n' {
-				break
-			}
-			fallthrough
-		case eof, '\n':
-			return l.errorf("unterminated character constant")
-		case '\'':
-			break Loop
-		}
-	}
-	l.emit(itemCharConstant)
-	return lexInsideAction
-}
-
-// lexNumber scans a number: decimal, octal, hex, float, or imaginary. This
-// isn't a perfect number scanner - for instance it accepts "." and "0x0.2"
-// and "089" - but when it's wrong the input is invalid and the parser (via
-// strconv) will notice.
-func lexNumber(l *lexer) stateFn {
-	if !l.scanNumber() {
-		return l.errorf("bad number syntax: %q", l.input[l.start:l.pos])
-	}
-	if sign := l.peek(); sign == '+' || sign == '-' {
-		// Complex: 1+2i. No spaces, must end in 'i'.
-		if !l.scanNumber() || l.input[l.pos-1] != 'i' {
-			return l.errorf("bad number syntax: %q", l.input[l.start:l.pos])
-		}
-		l.emit(itemComplex)
 	} else {
-		l.emit(itemNumber)
+		l.errorf("field name should be followed by arguments, whitespace, or a selector block")
+		return nil
 	}
-	return lexInsideAction
 }
+
+func lexQueryLeftParen(l *lexer) stateFn {
+	if l.next() != leftParen {
+		l.errorf("query arguments must begin with a %s", leftParen)
+		return nil
+	}
+	l.emit(itemParamBegin)
+
+	return lexInsideParam
+}
+
+func lexInsideParam(l *lexer) stateFn {
+	r := l.peek()
+
+	switch {
+	case isSpace(r):
+		l.acceptRun(whitespace)
+		l.emit(itemSpace)
+		return lexInsideParam
+
+	case isAlpha(r):
+		l.acceptFn(isAlpha)
+		l.acceptFn(isAlphaNumeric)
+		l.emit(itemParamName)
+		return lexParamColon
+
+	case r == rightParen:
+		l.next()
+		l.emit(itemParamEnd)
+		return lexSelectorBegin
+
+	default:
+		l.errorf("expected query argument")
+		return nil
+	}
+}
+
+func lexParamColon(l *lexer) stateFn {
+	if r := l.peek(); isSpace(r) {
+		l.acceptRun(whitespace)
+		l.emit(itemSpace)
+		return lexParamColon
+
+	} else if r == colon {
+		l.next()
+		l.emit(itemColon)
+		return lexParamValue
+
+	} else {
+		l.errorf("expected parameter name to be followed by a color")
+		return nil
+	}
+}
+
+func lexParamValue(l *lexer) stateFn {
+	r := l.peek()
+	switch {
+	case isSpace(r):
+		l.acceptRun(whitespace)
+		l.emit(itemSpace)
+		return lexParamValue
+
+	case isNumeric(r) || isSign(r):
+		if !l.scanNumber() {
+			l.errorf("invalid number format for parameter")
+			return nil
+		}
+		l.emit(itemNumber)
+		return lexInsideParam
+
+	default:
+		l.errorf("unexpect value for parameter")
+		return nil
+	}
+}
+
+func lexSelectorBegin(l *lexer) stateFn {
+	if r := l.peek(); isSpace(r) {
+		l.acceptRun(whitespace)
+		l.emit(itemSpace)
+	}
+
+	if l.next() != leftCurly {
+		l.errorf("expected field selector to begin with %s", leftCurly)
+		return nil
+	}
+	l.emit(itemSelectorBegin)
+
+	return lexInsideSelector
+}
+
+func lexInsideSelector(l *lexer) stateFn {
+	r := l.peek()
+	switch {
+	case isSpace(r):
+		l.acceptRun(whitespace)
+		l.emit(itemSpace)
+		return lexInsideSelector
+
+	case isAlpha(r):
+		l.acceptFn(isAlpha)
+		l.acceptFn(isAlphaNumeric)
+		l.emit(itemSelector)
+		return lexInsideSelector
+
+	case r == rightCurly:
+		l.next()
+		l.emit(itemSelectorEnd)
+		return lexInsideQuery
+
+	default:
+		l.errorf("unexpected value inside selector")
+		return nil
+	}
+}
+
 func (l *lexer) scanNumber() bool {
 	// Optional leading sign.
 	l.accept("+-")
 
-	// Is it hex?
-	digits := "0123456789"
 	l.acceptRun(digits)
 	if l.accept(".") {
 		l.acceptRun(digits)
@@ -520,44 +456,9 @@ func (l *lexer) scanNumber() bool {
 	return true
 }
 
-// lexQuote scans a quoted string.
-func lexQuote(l *lexer) stateFn {
-Loop:
-	for {
-		switch l.next() {
-		case '\\':
-			if r := l.next(); r != eof && r != '\n' {
-				break
-			}
-			fallthrough
-		case eof, '\n':
-			return l.errorf("unterminated quoted string")
-		case '"':
-			break Loop
-		}
-	}
-	l.emit(itemString)
-	return lexInsideAction
-}
-
-// lexRawQuote scans a raw quoted string.
-func lexRawQuote(l *lexer) stateFn {
-Loop:
-	for {
-		switch l.next() {
-		case eof, '\n':
-			return l.errorf("unterminated raw quoted string")
-		case '`':
-			break Loop
-		}
-	}
-	l.emit(itemRawString)
-	return lexInsideAction
-}
-
 // isSpace reports whether r is a space character.
 func isSpace(r rune) bool {
-	return r == ' ' || r == '\t' || r == '\n'
+	return r == ' ' || r == '\t' || r == '\n' || r == '\r'
 }
 
 // isEndOfLine reports whether r is an end-of-line character.
@@ -570,7 +471,16 @@ func isAlphaNumeric(r rune) bool {
 	return r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r)
 }
 
-// isNameStart reports whether r is an alphabetic or underscore
+// isAlpha reports whether r is an alphabetic or underscore
 func isAlpha(r rune) bool {
 	return r == '_' || unicode.IsLetter(r)
+}
+
+// isNumeric reports whether r is numeric
+func isNumeric(r rune) bool {
+	return strings.IndexRune(digits, r) >= 0
+}
+
+func isSign(r rune) bool {
+	return r == '-' || r == '+'
 }
