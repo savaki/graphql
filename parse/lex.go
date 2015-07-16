@@ -269,7 +269,7 @@ func lexQueryName(l *lexer) stateFn {
 
 func lexQueryBegin(l *lexer) stateFn {
 	if l.next() != leftCurly {
-		l.errorf("queries must begin with a %s", leftCurly)
+		return l.errorf("queries must begin with a %s", leftCurly)
 	}
 	l.emit(itemQueryBegin)
 
@@ -319,15 +319,13 @@ func lexQueryArgs(l *lexer) stateFn {
 		return lexSelectorBegin
 
 	} else {
-		l.errorf("field name should be followed by arguments, whitespace, or a selector block")
-		return nil
+		return l.errorf("field name should be followed by arguments, whitespace, or a selector block")
 	}
 }
 
 func lexQueryLeftParen(l *lexer) stateFn {
 	if l.next() != leftParen {
-		l.errorf("query arguments must begin with a %s", leftParen)
-		return nil
+		return l.errorf("query arguments must begin with a %s", leftParen)
 	}
 	l.emit(itemParamBegin)
 
@@ -355,8 +353,7 @@ func lexInsideParam(l *lexer) stateFn {
 		return lexSelectorBegin
 
 	default:
-		l.errorf("expected query argument")
-		return nil
+		return l.errorf("expected query argument")
 	}
 }
 
@@ -372,8 +369,7 @@ func lexParamColon(l *lexer) stateFn {
 		return lexParamValue
 
 	} else {
-		l.errorf("expected parameter name to be followed by a color")
-		return nil
+		return l.errorf("expected parameter name to be followed by a color")
 	}
 }
 
@@ -387,15 +383,13 @@ func lexParamValue(l *lexer) stateFn {
 
 	case isNumeric(r) || isSign(r):
 		if !l.scanNumber() {
-			l.errorf("invalid number format for parameter")
-			return nil
+			return l.errorf("invalid number format for parameter")
 		}
 		l.emit(itemNumber)
 		return lexInsideParam
 
 	default:
-		l.errorf("unexpect value for parameter")
-		return nil
+		return l.errorf("unexpect value for parameter")
 	}
 }
 
@@ -406,8 +400,7 @@ func lexSelectorBegin(l *lexer) stateFn {
 	}
 
 	if l.next() != leftCurly {
-		l.errorf("expected field selector to begin with %s", leftCurly)
-		return nil
+		return l.errorf("expected field selector to begin with %s", leftCurly)
 	}
 	l.emit(itemSelectorBegin)
 
@@ -434,8 +427,7 @@ func lexInsideSelector(l *lexer) stateFn {
 		return lexInsideQuery
 
 	default:
-		l.errorf("unexpected value inside selector")
-		return nil
+		return l.errorf("unexpected value inside selector")
 	}
 }
 
