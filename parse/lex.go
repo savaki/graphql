@@ -224,7 +224,7 @@ const (
 )
 
 const (
-	whitespace = " \t\n\r"
+	whitespace = ", \t\n\r"
 	digits     = "0123456789"
 )
 
