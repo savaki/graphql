@@ -310,6 +310,11 @@ func lexFieldFilter(l *lexer) stateFn {
 		l.depth--
 		return lexPostField
 
+	case r == dot:
+		l.next()
+		l.emit(itemDot)
+		return lexField
+
 	case r == eof:
 		l.emit(itemEOF)
 		return nil

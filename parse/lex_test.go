@@ -18,6 +18,47 @@ func BenchmarkSimple(b *testing.B) {
 	}
 }
 
+func TestLexComplex1(t *testing.T) {
+	Convey("Verify #lex on complex grammar", t, func() {
+		l := lex("complex",
+			`query user(id:123) {
+				close_friends: friends.max(5).distance(1) {
+					picture
+				}
+			}`)
+
+		wants := []item{
+			{typ: itemQuery},
+			{typ: itemName, val: "user"},
+			{typ: itemLeftParen},
+			{typ: itemName, val: "id"},
+			{typ: itemColon},
+			{typ: itemNumber, val: "123"},
+			{typ: itemRightParen},
+			{typ: itemLeftCurly},
+			{typ: itemName, val: "close_friends"},
+			{typ: itemColon},
+			{typ: itemName, val: "friends"},
+			{typ: itemDot},
+			{typ: itemName, val: "max"},
+			{typ: itemLeftParen},
+			{typ: itemNumber, val: "5"},
+			{typ: itemRightParen},
+			{typ: itemDot},
+			{typ: itemName, val: "distance"},
+			{typ: itemLeftParen},
+			{typ: itemNumber, val: "1"},
+			{typ: itemRightParen},
+			{typ: itemLeftCurly},
+			{typ: itemName, val: "picture"},
+			{typ: itemRightCurly},
+			{typ: itemRightCurly},
+			{typ: itemEOF},
+		}
+		VerifyWants(l, wants)
+	})
+}
+
 func TestLexSimple(t *testing.T) {
 	Convey("Verify #lex on simple grammar", t, func() {
 		l := lex("simple", `query sample {
