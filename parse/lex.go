@@ -11,6 +11,8 @@ import (
 	"unicode/utf8"
 )
 
+type Pos int
+
 // item represents a token or text string returned from the scanner.
 type item struct {
 	typ itemType // The type of this item.

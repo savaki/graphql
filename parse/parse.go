@@ -1,440 +1,149 @@
-// Copyright 2011 The Go Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
-// Package parse builds parse trees for templates as defined by text/template
-// and html/template. Clients should use those packages to construct templates
-// rather than this one, which provides shared internal data structures not
-// intended for general use.
 package parse
 
-import (
-	"bytes"
-	"fmt"
-	"runtime"
-	"strconv"
-	"strings"
-)
+func Parse(q string) (*Node, error) {
+	l := lex("graph", q)
+	iter := newIterator(l)
 
-// Tree is the representation of a single parsed template.
-type Tree struct {
-	Name      string    // name of the template represented by the tree.
-	ParseName string    // name of the top-level template during parsing, for error messages.
-	Root      *ListNode // top-level root of the tree.
-	text      string    // text parsed to create the template (or its parent)
-						// Parsing only; cleared after parse.
-	lex       *lexer
-	token     [3]item   // three-token lookahead for parser.
-	peekCount int
+	parse(iter)
+	if iter.err != nil {
+		return nil, iter.err
+	}
+
+	return &Node{Query: iter.selector}, nil
 }
 
-// Copy returns a copy of the Tree. Any parsing state is discarded.
-func (t *Tree) Copy() *Tree {
-	if t == nil {
-		return nil
-	}
-	return &Tree{
-		Name:      t.Name,
-		ParseName: t.ParseName,
-		Root:      t.Root.CopyList(),
-		text:      t.text,
+func parse(iter *iterator) {
+	var fn parseFn = parseRoot
+	for fn != nil {
+		fn = fn(iter)
 	}
 }
 
-// Parse returns a map from template name to parse.Tree, created by parsing the
-// templates described in the argument string. The top-level template will be
-// given the specified name. If an error is encountered, parsing stops and an
-// empty map is returned with the error.
-func Parse(name, text string) (treeSet map[string]*Tree, err error) {
-	treeSet = make(map[string]*Tree)
-	t := New(name)
-	t.text = text
-	_, err = t.Parse(text, treeSet)
-	return
-}
+func parseRoot(iter *iterator) parseFn {
+	item := iter.peek()
+	switch item.typ {
+	case itemQuery:
+		iter.next()
+		return parseSelector
 
-// next returns the next token.
-func (t *Tree) next() item {
-	if t.peekCount > 0 {
-		t.peekCount--
-	} else {
-		t.token[0] = t.lex.nextItem()
-	}
-	return t.token[t.peekCount]
-}
-
-// backup backs the input stream up one token.
-func (t *Tree) backup() {
-	t.peekCount++
-}
-
-// backup2 backs the input stream up two tokens.
-// The zeroth token is already there.
-func (t *Tree) backup2(t1 item) {
-	t.token[1] = t1
-	t.peekCount = 2
-}
-
-// backup3 backs the input stream up three tokens
-// The zeroth token is already there.
-func (t *Tree) backup3(t2, t1 item) { // Reverse order: we're pushing back.
-	t.token[1] = t1
-	t.token[2] = t2
-	t.peekCount = 3
-}
-
-// peek returns but does not consume the next token.
-func (t *Tree) peek() item {
-	if t.peekCount > 0 {
-		return t.token[t.peekCount-1]
-	}
-	t.peekCount = 1
-	t.token[0] = t.lex.nextItem()
-	return t.token[0]
-}
-
-// nextNonSpace returns the next non-space token.
-func (t *Tree) nextNonSpace() (token item) {
-	for {
-		token = t.next()
-		if token.typ != itemSpace {
-			break
-		}
-	}
-	return token
-}
-
-// peekNonSpace returns but does not consume the next non-space token.
-func (t *Tree) peekNonSpace() (token item) {
-	for {
-		token = t.next()
-		if token.typ != itemSpace {
-			break
-		}
-	}
-	t.backup()
-	return token
-}
-
-// Parsing.
-// New allocates a new parse tree with the given name.
-func New(name string) *Tree {
-	return &Tree{
-		Name:  name,
-	}
-}
-
-// ErrorContext returns a textual representation of the location of the node in the input text.
-// The receiver is only used when the node does not have a pointer to the tree inside,
-// which can occur in old code.
-func (t *Tree) ErrorContext(n Node) (location, context string) {
-	pos := int(n.Position())
-	tree := n.tree()
-	if tree == nil {
-		tree = t
-	}
-	text := tree.text[:pos]
-	byteNum := strings.LastIndex(text, "\n")
-	if byteNum == -1 {
-		byteNum = pos // On first line.
-	} else {
-		byteNum++ // After the newline.
-		byteNum = pos - byteNum
-	}
-	lineNum := 1 + strings.Count(text, "\n")
-	context = n.String()
-	if len(context) > 20 {
-		context = fmt.Sprintf("%.20s...", context)
-	}
-	return fmt.Sprintf("%s:%d:%d", tree.ParseName, lineNum, byteNum), context
-}
-
-// errorf formats the error and terminates processing.
-func (t *Tree) errorf(format string, args ...interface{}) {
-	t.Root = nil
-	format = fmt.Sprintf("template: %s:%d: %s", t.ParseName, t.lex.lineNumber(), format)
-	panic(fmt.Errorf(format, args...))
-}
-
-// error terminates processing.
-func (t *Tree) error(err error) {
-	t.errorf("%s", err)
-}
-
-// expect consumes the next token and guarantees it has the required type.
-func (t *Tree) expect(expected itemType, context string) item {
-	token := t.nextNonSpace()
-	if token.typ != expected {
-		t.unexpected(token, context)
-	}
-	return token
-}
-
-// expectOneOf consumes the next token and guarantees it has one of the required types.
-func (t *Tree) expectOneOf(expected1, expected2 itemType, context string) item {
-	token := t.nextNonSpace()
-	if token.typ != expected1 && token.typ != expected2 {
-		t.unexpected(token, context)
-	}
-	return token
-}
-
-// unexpected complains about the token and terminates processing.
-func (t *Tree) unexpected(token item, context string) {
-	t.errorf("unexpected %s in %s", token, context)
-}
-
-// recover is the handler that turns panics into returns from the top level of Parse.
-func (t *Tree) recover(errp *error) {
-	e := recover()
-	if e != nil {
-		if _, ok := e.(runtime.Error); ok {
-			panic(e)
-		}
-		if t != nil {
-			t.stopParse()
-		}
-		*errp = e.(error)
-	}
-	return
-}
-
-// startParse initializes the parser, using the lexer.
-func (t *Tree) startParse(lex *lexer) {
-	t.Root = nil
-	t.lex = lex
-}
-
-// stopParse terminates parsing.
-func (t *Tree) stopParse() {
-	t.lex = nil
-}
-
-// Parse parses the template definition string to construct a representation of
-// the template for execution. If either action delimiter string is empty, the
-// default ("{{" or "}}") is used. Embedded template definitions are added to
-// the treeSet map.
-func (t *Tree) Parse(text string, treeSet map[string]*Tree) (tree *Tree, err error) {
-	defer t.recover(&err)
-
-	debug("starting parser")
-
-	t.ParseName = t.Name
-	t.startParse(lex(t.Name, text))
-	t.text = text
-	t.parse(treeSet)
-	t.add(treeSet)
-	t.stopParse()
-	return t, nil
-}
-
-// add adds tree to the treeSet.
-func (t *Tree) add(treeSet map[string]*Tree) {
-	tree := treeSet[t.Name]
-	if tree == nil || IsEmptyTree(tree.Root) {
-		treeSet[t.Name] = t
-		return
-	}
-	if !IsEmptyTree(t.Root) {
-		t.errorf("template: multiple definition of template %q", t.Name)
-	}
-}
-
-// IsEmptyTree reports whether this tree (node) is empty of everything but space.
-func IsEmptyTree(n Node) bool {
-	switch n := n.(type) {
-	case nil:
-		return true
-	case *IfNode:
-	case *ListNode:
-		for _, node := range n.Nodes {
-			if !IsEmptyTree(node) {
-				return false
-			}
-		}
-		return true
-	case *RangeNode:
-	case *TemplateNode:
-	case *TextNode:
-		return len(bytes.TrimSpace(n.Text)) == 0
-	case *WithNode:
 	default:
-		panic("unknown node: " + n.String())
+		return iter.errorf("unexpected element after query => %s", item.typ)
 	}
-	return false
 }
 
-// parse is the top-level parser for a template, essentially the same
-// as itemList except it also parses {{define}} actions.
-// It runs to EOF.
-func (t *Tree) parse(treeSet map[string]*Tree) (next Node) {
-	t.Root = t.newList(t.peek().pos)
-	for t.peek().typ != itemEOF {
-		if t.peek().typ == itemLeftCurly {
-			delim := t.next()
-			t.backup2(delim)
-		}
-		n := t.textOrAction()
-		if n.Type() == nodeEnd {
-			t.errorf("unexpected %s", n)
-		}
-		t.Root.append(n)
-	}
-	return nil
-}
+func parseSelector(iter *iterator) parseFn {
+	item := iter.peek()
+	switch {
+	case item.typ == itemName && iter.peek1().typ == itemColon:
+		alias := iter.next() // alias
+		iter.next()          // colon
+		name := iter.next()  // name
 
-// parseDefinition parses a {{define}} ...  {{end}} template definition and
-// installs the definition in the treeSet map.  The "define" keyword has already
-// been scanned.
-func (t *Tree) parseDefinition(treeSet map[string]*Tree) {
-	const context = "define clause"
-	name := t.expectOneOf(itemString, itemRawString, context)
-	var err error
-	t.Name, err = strconv.Unquote(name.val)
-	if err != nil {
-		t.error(err)
-	}
-	t.expect(itemRightCurly, context)
-	var end Node
-	t.Root, end = t.itemList()
-	if end.Type() != nodeEnd {
-		t.errorf("unexpected %s in %s", end, context)
-	}
-	t.add(treeSet)
-	t.stopParse()
-}
+		iter.addAlias(alias.val, name.val)
+		return parseField
 
-// itemList:
-//	textOrAction*
-// Terminates at {{end}} or {{else}}, returned separately.
-func (t *Tree) itemList() (list *ListNode, next Node) {
-	list = t.newList(t.peekNonSpace().pos)
-	for t.peekNonSpace().typ != itemEOF {
-		n := t.textOrAction()
-		switch n.Type() {
-		case nodeEnd, nodeElse:
-			return list, n
-		}
-		list.append(n)
-	}
-	t.errorf("unexpected EOF")
-	return
-}
+	case item.typ == itemName:
+		iter.next()
+		iter.addField(item.val)
+		return parseField
 
-// textOrAction:
-//	text | action
-func (t *Tree) textOrAction() Node {
-	switch token := t.nextNonSpace(); token.typ {
-	case itemText:
-		return t.newText(token.pos, token.val)
-	default:
-		t.unexpected(token, "input")
-	}
-	return nil
-}
+	case item.typ == itemRightCurly:
+		iter.next()
+		iter.popSelector()
+		return parseSelector
 
-// End:
-//	{{end}}
-// End keyword is past.
-func (t *Tree) endControl() Node {
-	return t.newEnd(t.expect(itemRightCurly, "end").pos)
-}
-
-// command:
-//	operand (space operand)*
-// space-separated arguments up to a pipeline character or right delimiter.
-// we consume the pipe character but leave the right delim to terminate the action.
-func (t *Tree) command() *CommandNode {
-	cmd := t.newCommand(t.peekNonSpace().pos)
-	for {
-		t.peekNonSpace() // skip leading spaces.
-		operand := t.operand()
-		if operand != nil {
-			cmd.append(operand)
-		}
-		switch token := t.next(); token.typ {
-		case itemError:
-			t.errorf("%s", token.val)
-		case itemRightCurly, itemRightParen:
-			t.backup()
-		default:
-			t.errorf("unexpected %s in operand; missing space?", token)
-		}
-		break
-	}
-	if len(cmd.Args) == 0 {
-		t.errorf("empty command")
-	}
-	return cmd
-}
-
-// operand:
-//	term .Field*
-// An operand is a space-separated component of a command,
-// a term possibly followed by field accesses.
-// A nil return means the next item is not an operand.
-func (t *Tree) operand() Node {
-	node := t.term()
-	if node == nil {
+	case item.typ == itemEOF:
 		return nil
+
+	default:
+		return iter.errorf("unexpected element after query => %s", item.typ)
 	}
-	if t.peek().typ == itemName {
-		chain := t.newChain(t.peek().pos, node)
-		for t.peek().typ == itemName {
-			chain.Add(t.next().val)
-		}
-		// Compatibility with original API: If the term is of type NodeField
-		// or NodeVariable, just put more fields on the original.
-		// Otherwise, keep the Chain node.
-		// TODO: Switch to Chains always when we can.
-		switch node.Type() {
-		case NodeField:
-			node = t.newField(chain.Position(), chain.String())
-		case NodeVariable:
-			node = t.newVariable(chain.Position(), chain.String())
-		default:
-			node = chain
-		}
-	}
-	return node
 }
 
-// term:
-//	literal (number, string, nil, boolean)
-//	function (identifier)
-//	.
-//	.Field
-//	$
-//	'(' pipeline ')'
-// A term is a simple "expression".
-// A nil return means the next item is not a term.
-func (t *Tree) term() Node {
-	switch token := t.nextNonSpace(); token.typ {
-	case itemError:
-		t.errorf("%s", token.val)
-	case itemIdentifier:
-		return NewIdentifier(token.val).SetTree(t).SetPos(token.pos)
-	case itemDot:
-		return t.newDot(token.pos)
-	case itemNil:
-		return t.newNil(token.pos)
-	case itemName:
-		return t.newField(token.pos, token.val)
-	case itemBool:
-		return t.newBool(token.pos, token.val == "true")
-	case itemCharConstant, itemComplex, itemNumber:
-		number, err := t.newNumber(token.pos, token.val, token.typ)
-		if err != nil {
-			t.error(err)
-		}
-		return number
-	case itemString, itemRawString:
-		s, err := strconv.Unquote(token.val)
-		if err != nil {
-			t.error(err)
-		}
-		return t.newString(token.pos, token.val, s)
+func parseField(iter *iterator) parseFn {
+	item := iter.peek()
+	switch {
+	case item.typ == itemLeftParen:
+		iter.next()
+		return parseFieldArg
+
+	case item.typ == itemLeftCurly:
+		iter.next()
+		s := iter.addSelector()
+		iter.pushSelector(s)
+		return parseSelector
+
+	case item.typ == itemDot:
+		iter.next()
+		return parseOperation
+
+	case item.typ == itemRightCurly:
+		iter.next()
+		iter.popSelector()
+		return parseSelector
+
+	default:
+		return iter.errorf("unexpected element after name => %s", item.typ)
 	}
-	t.backup()
+}
+
+func parseOperation(iter *iterator) parseFn {
+	item := iter.peek()
+	switch {
+	case item.typ == itemName && iter.peek1().typ == itemLeftParen:
+		iter.next() // name
+		iter.next() // left paren
+		iter.addOperation(item.val)
+		return parseOperationArg
+
+	default:
+		return iter.errorf("unexpected operation after dot => %s", item.typ)
+	}
 	return nil
 }
 
+func parseOperationArg(iter *iterator) parseFn {
+	item := iter.peek()
+	switch {
+	case item.typ == itemName && iter.peek1().typ == itemColon:
+		name := iter.next()  // name
+		iter.next()          // colon
+		value := iter.next() // value
+
+		iter.addOperationArg(name.val, value.val)
+		return parseOperationArg
+
+	case item.typ == itemRightParen:
+		iter.next()
+		return parseField
+
+	case item.typ == itemNumber:
+		iter.next()
+		iter.addOperationArg("", item.val)
+		return parseOperationArg
+
+	default:
+		return iter.errorf("unexpected operation argument element => %s", item.typ)
+	}
+
+}
+
+func parseFieldArg(iter *iterator) parseFn {
+	item := iter.peek()
+	switch {
+	case item.typ == itemName && iter.peek1().typ == itemColon:
+		name := iter.next()  // name
+		iter.next()          // colon
+		value := iter.next() // value
+
+		iter.addFieldArg(name.val, value.val)
+		return parseFieldArg
+
+	case item.typ == itemRightParen:
+		iter.next()
+		return parseField
+
+	default:
+		return iter.errorf("unexpected field argument element => %s", item.typ)
+	}
+}
