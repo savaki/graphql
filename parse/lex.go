@@ -48,7 +48,6 @@ const (
 	itemLeftParen  // '(' inside action
 	itemRightParen // ')' inside action
 	itemNumber     // simple number, including imaginary
-	itemSpace      // run of spaces separating arguments
 	itemColon      // the : separating param name from param value
 	itemComma      // the comma separating elements
 
@@ -58,6 +57,7 @@ const (
 	itemNil     // the untyped nil constant, easiest to treat as a keyword
 
 	// TO BE REMOVED
+	itemSpace
 	itemText         // plain text
 	itemString       // quoted string (includes quotes)
 	itemRawString    // raw quoted string (includes quotes)
@@ -87,7 +87,7 @@ type lexer struct {
 	lastPos Pos         // position of most recent item returned by nextItem
 	items   chan item   // channel of scanned items
 	depth   int         // selector depth
-	token   [2]itemType // three-token look behind for parser.
+	token   [2]itemType // two-token look behind for parser.
 }
 
 // next returns the next rune in the input.
@@ -119,11 +119,9 @@ func (l *lexer) emit(t itemType) {
 	l.items <- item{t, l.start, l.pos, l.input[l.start:l.pos]}
 	l.start = l.pos
 
-	if t != itemSpace {
-		// three token look behind
-		l.token[1] = l.token[0]
-		l.token[0] = t
-	}
+	// two token look behind
+	l.token[1] = l.token[0]
+	l.token[0] = t
 }
 
 // ignore skips over the pending input before this point.
@@ -235,7 +233,7 @@ func lexRoot(l *lexer) stateFn {
 	switch {
 	case isSpace(r):
 		l.accept(whitespace)
-		l.emit(itemSpace)
+		l.ignore()
 		return lexRoot
 
 	case strings.HasPrefix(l.input[l.pos:], keywords[itemQuery]):
@@ -264,7 +262,7 @@ func lexQuery(l *lexer) stateFn {
 
 func lexField(l *lexer) stateFn {
 	if l.acceptRun(whitespace) > 0 {
-		l.emit(itemSpace)
+		l.ignore()
 	}
 
 	// scan field
@@ -280,7 +278,7 @@ func lexFieldFilter(l *lexer) stateFn {
 	switch {
 	case isSpace(r):
 		l.acceptRun(whitespace)
-		l.emit(itemSpace)
+		l.ignore()
 		return lexFieldFilter
 
 	case r == dot && l.token[0] == itemName:
@@ -325,7 +323,7 @@ func lexPostField(l *lexer) stateFn {
 	switch {
 	case isSpace(r):
 		l.acceptRun(whitespace)
-		l.emit(itemSpace)
+		l.ignore()
 		return lexFieldFilter
 
 	default:
@@ -339,7 +337,7 @@ func lexFieldArg(l *lexer) stateFn {
 	switch {
 	case isSpace(r):
 		l.acceptRun(whitespace)
-		l.emit(itemSpace)
+		l.ignore()
 		return lexFieldArg
 
 	case r == plus || r == minus || isNumeric(r):
@@ -385,7 +383,7 @@ func lexFieldValue(l *lexer) stateFn {
 	switch {
 	case isSpace(r):
 		l.acceptRun(whitespace)
-		l.emit(itemSpace)
+		l.ignore()
 		return lexFieldValue
 
 	case r == plus || r == minus || isNumeric(r):
@@ -411,7 +409,7 @@ func lexFieldNext(l *lexer) stateFn {
 	switch {
 	case isSpace(r):
 		l.acceptRun(whitespace)
-		l.emit(itemSpace)
+		l.ignore()
 		return lexFieldNext
 
 	case r == comma:

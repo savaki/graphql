@@ -352,8 +352,6 @@ func (t *Tree) command() *CommandNode {
 			cmd.append(operand)
 		}
 		switch token := t.next(); token.typ {
-		case itemSpace:
-			continue
 		case itemError:
 			t.errorf("%s", token.val)
 		case itemRightCurly, itemRightParen:
