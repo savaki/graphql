@@ -269,7 +269,7 @@ func IsEmptyTree(n Node) bool {
 func (t *Tree) parse(treeSet map[string]*Tree) (next Node) {
 	t.Root = t.newList(t.peek().pos)
 	for t.peek().typ != itemEOF {
-		if t.peek().typ == itemQueryBegin {
+		if t.peek().typ == itemLeftCurly {
 			delim := t.next()
 			t.backup2(delim)
 		}
@@ -293,7 +293,7 @@ func (t *Tree) parseDefinition(treeSet map[string]*Tree) {
 	if err != nil {
 		t.error(err)
 	}
-	t.expect(itemRightDelim, context)
+	t.expect(itemRightCurly, context)
 	var end Node
 	t.Root, end = t.itemList()
 	if end.Type() != nodeEnd {
@@ -336,7 +336,7 @@ func (t *Tree) textOrAction() Node {
 //	{{end}}
 // End keyword is past.
 func (t *Tree) endControl() Node {
-	return t.newEnd(t.expect(itemRightDelim, "end").pos)
+	return t.newEnd(t.expect(itemRightCurly, "end").pos)
 }
 
 // command:
@@ -356,7 +356,7 @@ func (t *Tree) command() *CommandNode {
 			continue
 		case itemError:
 			t.errorf("%s", token.val)
-		case itemRightDelim, itemParamEnd:
+		case itemRightCurly, itemRightParen:
 			t.backup()
 		default:
 			t.errorf("unexpected %s in operand; missing space?", token)
@@ -379,9 +379,9 @@ func (t *Tree) operand() Node {
 	if node == nil {
 		return nil
 	}
-	if t.peek().typ == itemField {
+	if t.peek().typ == itemName {
 		chain := t.newChain(t.peek().pos, node)
-		for t.peek().typ == itemField {
+		for t.peek().typ == itemName {
 			chain.Add(t.next().val)
 		}
 		// Compatibility with original API: If the term is of type NodeField
@@ -419,7 +419,7 @@ func (t *Tree) term() Node {
 		return t.newDot(token.pos)
 	case itemNil:
 		return t.newNil(token.pos)
-	case itemField:
+	case itemName:
 		return t.newField(token.pos, token.val)
 	case itemBool:
 		return t.newBool(token.pos, token.val == "true")

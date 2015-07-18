@@ -5,6 +5,7 @@ package parse
 
 import (
 	"fmt"
+	"log"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -36,41 +37,37 @@ func (i item) String() string {
 type itemType int
 
 const (
-	itemError        itemType = iota // error occurred; value is text of error
-	itemBool                         // boolean constant
-	itemChar                         // printable ASCII character; grab bag for comma etc.
-	itemCharConstant                 // character constant
-	itemComplex                      // complex constant (1+2i); imaginary is just a number
+	itemError itemType = iota // error occurred; value is text of error
+	itemBool                  // boolean constant
 	itemEOF
-	itemField         // alphanumeric identifier starting with '.'
-	itemIdentifier    // alphanumeric identifier not starting with '.'
-	itemQueryKeyword // query keyword
-	itemQueryName     // the name for a query
-	itemQueryField    // the field within the query
-	itemQueryBegin    // marks start of query block
-	itemQueryEnd      // marks end of query block
-	itemParamBegin    // '(' inside action
-	itemParamEnd      // ')' inside action
-	itemNumber        // simple number, including imaginary
-	itemRawString     // raw quoted string (includes quotes)
-	itemRightDelim    // right action delimiter
-	itemSpace         // run of spaces separating arguments
-	itemString        // quoted string (includes quotes)
-	itemText          // plain text
-	itemColon         // the : separating param name from param value
-	itemParamName     // the parameter name
-	itemSelectorBegin // marks the start of a selector block
-	itemSelectorEnd   // marks the end of a selector block
-	itemSelector      // marks the field we want returned
+	itemName       // alphanumeric identifier starting with '.'
+	itemQuery      // query keyword
+	itemLeftCurly  // marks start of query block
+	itemRightCurly // right action delimiter
+	itemLeftParen  // '(' inside action
+	itemRightParen // ')' inside action
+	itemNumber     // simple number, including imaginary
+	itemSpace      // run of spaces separating arguments
+	itemColon      // the : separating param name from param value
+	itemComma      // the comma separating elements
 
 	// ONLY KEYWORDS BELOW THIS POINT
-	itemKeyword      // used only to delimit the keywords
-	itemDot          // the cursor, spelled '.'
-	itemNil          // the untyped nil constant, easiest to treat as a keyword
+	itemKeyword // used only to delimit the keywords
+	itemDot     // the cursor, spelled '.'
+	itemNil     // the untyped nil constant, easiest to treat as a keyword
+
+	// TO BE REMOVED
+	itemText         // plain text
+	itemString       // quoted string (includes quotes)
+	itemRawString    // raw quoted string (includes quotes)
+	itemIdentifier   // alphanumeric identifier not starting with '.'
+	itemChar         // printable ASCII character; grab bag for comma etc.
+	itemCharConstant // character constant
+	itemComplex      // complex constant (1+2i); imaginary is just a number
 )
 
 var keywords = map[itemType]string{
-	itemQueryKeyword: "query",
+	itemQuery: "query",
 }
 
 const eof = -1
@@ -80,15 +77,16 @@ type stateFn func(*lexer) stateFn
 
 // lexer holds the state of the scanner.
 type lexer struct {
-	name       string    // the name of the input; used only for error reports
-	input      string    // the string being scanned
-	state      stateFn   // the next lexing function to enter
-	pos        Pos       // current position in the input
-	start      Pos       // start position of this item
-	width      Pos       // width of last rune read from input
-	lastPos    Pos       // position of most recent item returned by nextItem
-	items      chan item // channel of scanned items
-	parenDepth int       // nesting depth of ( ) exprs
+	name    string      // the name of the input; used only for error reports
+	input   string      // the string being scanned
+	state   stateFn     // the next lexing function to enter
+	pos     Pos         // current position in the input
+	start   Pos         // start position of this item
+	width   Pos         // width of last rune read from input
+	lastPos Pos         // position of most recent item returned by nextItem
+	items   chan item   // channel of scanned items
+	depth   int         // selector depth
+	token   [3]itemType // three-token look behind for parser.
 }
 
 // next returns the next rune in the input.
@@ -119,6 +117,13 @@ func (l *lexer) backup() {
 func (l *lexer) emit(t itemType) {
 	l.items <- item{t, l.start, l.input[l.start:l.pos]}
 	l.start = l.pos
+
+	if t != itemSpace {
+		// three token look behind
+		l.token[2] = l.token[1]
+		l.token[1] = l.token[0]
+		l.token[0] = t
+	}
 }
 
 // ignore skips over the pending input before this point.
@@ -133,6 +138,18 @@ func (l *lexer) accept(valid string) bool {
 	}
 	l.backup()
 	return false
+}
+
+func (l *lexer) acceptOrdered(valid string) bool {
+	for index, r := range valid {
+		if l.next() != r {
+			for i := 0; i <= index; i++ {
+				l.backup()
+			}
+			return false
+		}
+	}
+	return true
 }
 
 // acceptRun consumes a run of runes from the valid set.
@@ -165,6 +182,7 @@ func (l *lexer) lineNumber() int {
 // errorf returns an error token and terminates the scan by passing
 // back a nil pointer that will be the next state, terminating l.nextItem.
 func (l *lexer) errorf(format string, args ...interface{}) stateFn {
+	log.Printf(format, args...)
 	l.items <- item{itemError, l.start, fmt.Sprintf(format, args...)}
 	return nil
 }
@@ -189,14 +207,18 @@ func lex(name, input string) *lexer {
 
 // run runs the state machine for the lexer.
 func (l *lexer) run() {
-	for l.state = lexQuery; l.state != nil; {
+	for l.state = lexRoot; l.state != nil; {
 		l.state = l.state(l)
 	}
 }
 
 // state functions
 const (
+	dot        = '.'
 	colon      = ':'
+	plus       = '+'
+	minus      = '-'
+	comma      = ','
 	leftParen  = '('
 	rightParen = ')'
 	leftCurly  = '{'
@@ -204,220 +226,227 @@ const (
 )
 
 const (
-	whitespace   = " \t\n\r"
-	digits       = "0123456789"
+	whitespace = " \t\n\r"
+	digits     = "0123456789"
 )
 
-func lexQuery(l *lexer) stateFn {
-	if r := l.peek(); isSpace(r) {
+func lexRoot(l *lexer) stateFn {
+	r := l.peek()
+	switch {
+	case isSpace(r):
 		l.accept(whitespace)
 		l.emit(itemSpace)
+		return lexRoot
+
+	case strings.HasPrefix(l.input[l.pos:], keywords[itemQuery]):
 		return lexQuery
 
-	} else if strings.HasPrefix(l.input[l.pos:], keywords[itemQueryKeyword]) {
-		return lexQueryKeyword
-
-	} else if r == eof {
+	case r == eof:
 		l.emit(itemEOF)
 		return nil
 
-	} else {
+	default:
 		return l.errorf("queries must begin with the query keyword")
 	}
 }
 
-func lexQueryKeyword(l *lexer) stateFn {
-	l.pos += Pos(len(keywords[itemQueryKeyword]))
-	l.emit(itemQueryKeyword)
+func lexQuery(l *lexer) stateFn {
+	l.pos += Pos(len(keywords[itemQuery]))
+	l.emit(itemQuery)
 
 	// query must be followed by at least one whitespace
-	if !l.accept(whitespace) {
+	if !isSpace(l.peek()) {
 		return l.errorf("query keyword must be followed by a whitespace")
 	}
 
-	l.acceptRun(whitespace) // skip any additional whitespace
-	l.emit(itemSpace)
-
-	return lexQueryName
+	return lexField
 }
 
-func lexQueryName(l *lexer) stateFn {
-	if length := l.acceptFn(isAlpha); length == 0 {
-		return l.errorf("query name must begin with either an alphabet or an underscore")
-	}
-	l.acceptFn(isAlphaNumeric)
-	l.emit(itemQueryName)
-
-	// skip any whitespace
-	if count := l.acceptRun(whitespace); count > 0 {
+func lexField(l *lexer) stateFn {
+	if l.acceptRun(whitespace) > 0 {
 		l.emit(itemSpace)
 	}
 
-	return lexQueryBegin
-}
-
-func lexQueryBegin(l *lexer) stateFn {
-	if l.next() != leftCurly {
-		return l.errorf("queries must begin with a %s", leftCurly)
+	// scan field
+	if !l.scanField() {
+		return l.errorf("fields must begin with either an alpha or an underscore")
 	}
-	l.emit(itemQueryBegin)
 
-	return lexInsideQuery
+	return lexFieldFilter
 }
 
-func lexInsideQuery(l *lexer) stateFn {
+func lexFieldFilter(l *lexer) stateFn {
 	r := l.peek()
 	switch {
 	case isSpace(r):
 		l.acceptRun(whitespace)
 		l.emit(itemSpace)
-		return lexInsideQuery
+		return lexFieldFilter
 
-	case isAlpha(r):
-		return lexQueryField
-
-	case r == rightCurly:
+	case r == dot && l.token[0] == itemName:
 		l.next()
-		l.emit(itemQueryEnd)
-		return lexQuery
+		l.emit(itemDot)
+		return lexField
 
-	default:
-		return l.errorf("no field specified within query")
-	}
-}
+	case r == leftParen && l.token[0] == itemName:
+		l.next()
+		l.emit(itemLeftParen)
+		return lexFieldArg
 
-// we've already peeked so we know the first character is an alpha
-func lexQueryField(l *lexer) stateFn {
-	l.acceptFn(isAlpha)
-	l.acceptFn(isAlphaNumeric)
-	l.emit(itemQueryField)
-
-	return lexQueryArgs
-}
-
-func lexQueryArgs(l *lexer) stateFn {
-	r := l.peek()
-	switch {
-	case isSpace(r):
-		l.acceptRun(whitespace)
-		l.emit(itemSpace)
-		return lexQueryArgs
-
-	case r == leftParen:
-		return lexQueryLeftParen
+	case r == colon && l.token[0] == itemName && l.token[1] != itemColon:
+		l.next()
+		l.emit(itemColon)
+		return lexFieldFilter
 
 	case r == leftCurly:
-		return lexSelectorBegin
+		l.next()
+		l.emit(itemLeftCurly)
+		l.depth++
+		return lexField
+
+	case r == rightCurly && l.depth > 0:
+		l.next()
+		l.emit(itemRightCurly)
+		l.depth--
+		return lexPostField
 
 	default:
-		return l.errorf("field name should be followed by arguments, whitespace, or a selector block")
+		log.Printf("-> %s\n", l.input[l.start:])
+		return l.errorf("expected selector")
 	}
 }
 
-func lexQueryLeftParen(l *lexer) stateFn {
-	if l.next() != leftParen {
-		return l.errorf("query arguments must begin with a %s", leftParen)
-	}
-	l.emit(itemParamBegin)
-
-	return lexInsideParam
-}
-
-func lexInsideParam(l *lexer) stateFn {
+func lexPostField(l *lexer) stateFn {
 	r := l.peek()
 	switch {
 	case isSpace(r):
 		l.acceptRun(whitespace)
 		l.emit(itemSpace)
-		return lexInsideParam
+		return lexFieldFilter
 
-	case isAlpha(r):
-		l.acceptFn(isAlpha)
-		l.acceptFn(isAlphaNumeric)
-		l.emit(itemParamName)
-		return lexParamColon
+	default:
+		l.emit(itemEOF)
+		return nil
+	}
+}
+
+func lexFieldArg(l *lexer) stateFn {
+	r := l.peek()
+	switch {
+	case isSpace(r):
+		l.acceptRun(whitespace)
+		l.emit(itemSpace)
+		return lexFieldArg
+
+	case r == plus || r == minus || isNumeric(r):
+		if !l.scanNumber() {
+			return l.errorf("invalid number format for arg")
+		}
+		return lexFieldNext
+
+	case r == 't' || r == 'f':
+		if !l.scanBool() {
+			return l.errorf("invalid bool format for arg")
+		}
+		return lexFieldNext
 
 	case r == rightParen:
 		l.next()
-		l.emit(itemParamEnd)
-		return lexSelectorBegin
+		l.emit(itemRightParen)
+		return lexFieldFilter
 
-	default:
-		return l.errorf("expected query argument")
-	}
-}
+	case r == comma && l.token[0] == itemName:
+		l.next()
+		l.emit(itemComma)
+		return lexFieldArg
 
-func lexParamColon(l *lexer) stateFn {
-	if r := l.peek(); isSpace(r) {
-		l.acceptRun(whitespace)
-		l.emit(itemSpace)
-		return lexParamColon
-
-	} else if r == colon {
+	case r == colon && l.token[0] == itemName:
 		l.next()
 		l.emit(itemColon)
-		return lexParamValue
-
-	} else {
-		return l.errorf("expected parameter name to be followed by a color")
-	}
-}
-
-func lexParamValue(l *lexer) stateFn {
-	r := l.peek()
-	switch {
-	case isSpace(r):
-		l.acceptRun(whitespace)
-		l.emit(itemSpace)
-		return lexParamValue
-
-	case isNumeric(r) || isSign(r):
-		if !l.scanNumber() {
-			return l.errorf("invalid number format for parameter")
-		}
-		l.emit(itemNumber)
-		return lexInsideParam
-
-	default:
-		return l.errorf("unexpect value for parameter")
-	}
-}
-
-func lexSelectorBegin(l *lexer) stateFn {
-	if r := l.peek(); isSpace(r) {
-		l.acceptRun(whitespace)
-		l.emit(itemSpace)
-	}
-
-	if l.next() != leftCurly {
-		return l.errorf("expected field selector to begin with %s", leftCurly)
-	}
-	l.emit(itemSelectorBegin)
-
-	return lexInsideSelector
-}
-
-func lexInsideSelector(l *lexer) stateFn {
-	r := l.peek()
-	switch {
-	case isSpace(r):
-		l.acceptRun(whitespace)
-		l.emit(itemSpace)
-		return lexInsideSelector
+		return lexFieldValue
 
 	case isAlpha(r):
-		l.acceptFn(isAlpha)
-		l.acceptFn(isAlphaNumeric)
-		l.emit(itemSelector)
-		return lexInsideSelector
-
-	case r == rightCurly:
 		l.next()
-		l.emit(itemSelectorEnd)
-		return lexInsideQuery
+		l.acceptFn(isAlphaNumeric)
+		l.emit(itemName)
+		return lexFieldNext
 
 	default:
-		return l.errorf("unexpected value inside selector")
+		return l.errorf("unexpected field arg")
+	}
+}
+
+func lexFieldValue(l *lexer) stateFn {
+	r := l.peek()
+	switch {
+	case isSpace(r):
+		l.acceptRun(whitespace)
+		l.emit(itemSpace)
+		return lexFieldValue
+
+	case r == plus || r == minus || isNumeric(r):
+		if !l.scanNumber() {
+			return l.errorf("invalid number format for arg")
+		}
+		return lexFieldNext
+
+	case r == 't' || r == 'f':
+		if !l.scanBool() {
+			return l.errorf("invalid bool format for arg")
+		}
+		return lexFieldNext
+
+	default:
+		return l.errorf("unexpected field value")
+	}
+}
+
+// lexFieldNext scans the content immediately after a field name
+func lexFieldNext(l *lexer) stateFn {
+	r := l.peek()
+	switch {
+	case isSpace(r):
+		l.acceptRun(whitespace)
+		l.emit(itemSpace)
+		return lexFieldNext
+
+	case r == comma:
+		l.next()
+		l.emit(itemComma)
+		return lexFieldArg
+
+	case r == colon && l.token[0] == itemName:
+		l.next()
+		l.emit(itemColon)
+		return lexFieldValue
+
+	case r == rightParen:
+		l.next()
+		l.emit(itemRightParen)
+		return lexFieldFilter
+
+	default:
+		return l.errorf("argument or ) expected")
+	}
+}
+
+func (l *lexer) scanField() bool {
+	if length := l.acceptFn(isAlpha); length == 0 {
+		return false
+	}
+	l.acceptFn(isAlphaNumeric)
+	l.emit(itemName)
+	return true
+}
+
+func (l *lexer) scanBool() bool {
+	switch {
+	case l.acceptOrdered("true") || l.acceptOrdered("false"):
+		l.emit(itemBool)
+		return true
+
+	default:
+		return false
 	}
 }
 
@@ -425,9 +454,14 @@ func (l *lexer) scanNumber() bool {
 	// Optional leading sign.
 	l.accept("+-")
 
-	l.acceptRun(digits)
+	length := l.acceptRun(digits)
 	if l.accept(".") {
-		l.acceptRun(digits)
+		length = length + l.acceptRun(digits)
+	}
+
+	if length == 0 {
+		// no digits
+		return false
 	}
 
 	// Next thing mustn't be alphanumeric.
@@ -435,6 +469,8 @@ func (l *lexer) scanNumber() bool {
 		l.next()
 		return false
 	}
+
+	l.emit(itemNumber)
 	return true
 }
 
@@ -462,9 +498,4 @@ func isAlpha(r rune) bool {
 // isNumeric reports whether r is numeric
 func isNumeric(r rune) bool {
 	return strings.IndexRune(digits, r) >= 0
-}
-
-// isNumeric reports whether r is a signed value
-func isSign(r rune) bool {
-	return r == '-' || r == '+'
 }
