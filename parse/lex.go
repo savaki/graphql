@@ -310,6 +310,10 @@ func lexFieldFilter(l *lexer) stateFn {
 		l.depth--
 		return lexPostField
 
+	case r == eof:
+		l.emit(itemEOF)
+		return nil
+
 	default:
 		log.Printf("-> %s\n", l.input[l.start:])
 		return l.errorf("expected selector")

@@ -36,7 +36,7 @@ func TestLexSimple(t *testing.T) {
 			{typ: itemRightCurly},
 			{typ: itemSpace},
 			{typ: itemRightCurly},
-//			{typ: itemEOF},
+			{typ: itemEOF},
 		}
 
 		VerifyWants(l, wants)
