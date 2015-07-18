@@ -43,6 +43,49 @@ func TestLexSimple(t *testing.T) {
 	})
 }
 
+func TestLexAlias(t *testing.T) {
+	Convey("Verify #lex on simple grammar", t, func() {
+		l := lex("simple", `query sample {
+			me:user(id: 4) {
+				first : firstName
+			}
+		}`)
+
+		wants := []item{
+			{typ: itemQuery},
+			{typ: itemSpace},
+			{typ: itemName, val: "sample"},
+			{typ: itemSpace},
+			{typ: itemLeftCurly},
+			{typ: itemSpace},
+			{typ: itemName, val: "me"},
+			{typ: itemColon},
+			{typ: itemName, val: "user"},
+			{typ: itemLeftParen},
+			{typ: itemName, val: "id"},
+			{typ: itemColon},
+			{typ: itemSpace},
+			{typ: itemNumber, val: "4"},
+			{typ: itemRightParen},
+			{typ: itemSpace},
+			{typ: itemLeftCurly},
+			{typ: itemSpace},
+			{typ: itemName, val: "first"},
+			{typ: itemSpace},
+			{typ: itemColon},
+			{typ: itemSpace},
+			{typ: itemName, val: "firstName"},
+			{typ: itemSpace},
+			{typ: itemRightCurly},
+			{typ: itemSpace},
+			{typ: itemRightCurly},
+			{typ: itemEOF},
+		}
+
+		VerifyWants(l, wants)
+	})
+}
+
 func TestLexEmpty(t *testing.T) {
 	Convey("Verify #lex on empty grammar", t, func() {
 		l := lex("simple", ``)

@@ -15,6 +15,7 @@ import (
 type item struct {
 	typ itemType // The type of this item.
 	pos Pos      // The starting position, in bytes, of this item in the input string.
+	end Pos      // the length of this item
 	val string   // The value of this item.
 }
 
@@ -115,7 +116,7 @@ func (l *lexer) backup() {
 
 // emit passes an item back to the client.
 func (l *lexer) emit(t itemType) {
-	l.items <- item{t, l.start, l.input[l.start:l.pos]}
+	l.items <- item{t, l.start, l.pos, l.input[l.start:l.pos]}
 	l.start = l.pos
 
 	if t != itemSpace {
@@ -183,7 +184,7 @@ func (l *lexer) lineNumber() int {
 // back a nil pointer that will be the next state, terminating l.nextItem.
 func (l *lexer) errorf(format string, args ...interface{}) stateFn {
 	log.Printf(format, args...)
-	l.items <- item{itemError, l.start, fmt.Sprintf(format, args...)}
+	l.items <- item{itemError, l.start, 0, fmt.Sprintf(format, args...)}
 	return nil
 }
 
@@ -296,7 +297,7 @@ func lexFieldFilter(l *lexer) stateFn {
 	case r == colon && l.token[0] == itemName && l.token[1] != itemColon:
 		l.next()
 		l.emit(itemColon)
-		return lexFieldFilter
+		return lexField
 
 	case r == leftCurly:
 		l.next()
