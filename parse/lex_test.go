@@ -6,6 +6,18 @@ import (
 	. "github.com/smartystreets/goconvey/convey"
 )
 
+func BenchmarkSimple(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		l := lex("simple", `query sample {
+			user(id: 4) {
+				firstName
+			}
+		}`)
+		for item := l.nextItem(); item.typ != itemEOF; item = l.nextItem() {
+		}
+	}
+}
+
 func TestLexSimple(t *testing.T) {
 	Convey("Verify #lex on simple grammar", t, func() {
 		l := lex("simple", `query sample {

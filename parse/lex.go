@@ -87,7 +87,7 @@ type lexer struct {
 	lastPos Pos         // position of most recent item returned by nextItem
 	items   chan item   // channel of scanned items
 	depth   int         // selector depth
-	token   [3]itemType // three-token look behind for parser.
+	token   [2]itemType // three-token look behind for parser.
 }
 
 // next returns the next rune in the input.
@@ -121,7 +121,6 @@ func (l *lexer) emit(t itemType) {
 
 	if t != itemSpace {
 		// three token look behind
-		l.token[2] = l.token[1]
 		l.token[1] = l.token[0]
 		l.token[0] = t
 	}
@@ -247,7 +246,7 @@ func lexRoot(l *lexer) stateFn {
 		return nil
 
 	default:
-		return l.errorf("queries must begin with the query keyword")
+		return l.errorf("queries must begin with the query keyword ->")
 	}
 }
 
