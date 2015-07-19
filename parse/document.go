@@ -33,6 +33,10 @@ type Field struct {
 	Operations []*Filter `json:"operations,omitempty"`
 }
 
+func (f*Field) IsScalar() bool {
+	return f.Selector == nil || len(f.Selector.Fields) == 0
+}
+
 func (f *Field) addArg(name, value string) *Arg {
 	arg := &Arg{
 		Name:  name,
@@ -103,13 +107,13 @@ func newOperation(opType OperationType, alias, name string) *Operation {
 	}
 }
 
-// --[ Node ]---------------------------------------------------------
+// --[ Document ]-----------------------------------------------------
 
-type Node struct {
+type Document struct {
 	Operations []*Operation `json:"operations"`
 }
 
-func (n *Node) addOperation(opType OperationType, name string) *Operation {
+func (n *Document) addOperation(opType OperationType, name string) *Operation {
 	op := &Operation{
 		Type:  opType,
 		Field: newField("", name),

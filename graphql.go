@@ -1,6 +1,6 @@
 package gographql
 
-type Value interface{
+type Value interface {
 }
 
 type Arg struct {

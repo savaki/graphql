@@ -1,13 +1,16 @@
 package mapops
 
 import (
+	"bytes"
+	"encoding/json"
 	"testing"
 
+	"github.com/savaki/gographql"
 	. "github.com/smartystreets/goconvey/convey"
 )
 
 func TestStore(t *testing.T) {
-	Convey("Given a store", t, func() {
+	Convey("Verify map store can handle gra", t, func() {
 		friends := []string{
 			"james",
 			"jen",
@@ -21,21 +24,18 @@ func TestStore(t *testing.T) {
 		}
 		store := New(data)
 
-		field, err := store.Query("bill")
-		So(err, ShouldBeNil)
-		So(field, ShouldNotBeNil)
+		buf := bytes.NewBuffer([]byte{})
+		query := `query bill { friends }`
+		err := gographql.New(store).Handle(query, buf)
 
-		selection, err := field.Selection()
+		v := map[string]map[string][]string{}
+		err = json.Unmarshal(buf.Bytes(), &v)
 		So(err, ShouldBeNil)
-		So(selection, ShouldNotBeNil)
 
-		v, err := selection.Fetch("friends")
-		So(err, ShouldBeNil)
-		So(v, ShouldNotBeNil)
-
-		value, err := v.Value()
-		So(err, ShouldBeNil)
-		So(value, ShouldNotBeNil)
-		So(value, ShouldResemble, friends)
+		So(v, ShouldResemble, map[string]map[string][]string{
+			"bill": map[string][]string{
+				"friends": friends,
+			},
+		})
 	})
 }

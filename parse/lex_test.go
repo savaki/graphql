@@ -133,6 +133,22 @@ func TestLexEmpty(t *testing.T) {
 	})
 }
 
+func TestLexSimple2(t *testing.T) {
+	Convey("Verify #lex on empty grammar", t, func() {
+		l := lex("simple", `query bill { friends }`)
+
+		wants := []item{
+			{typ: itemQuery},
+			{typ: itemName, val: "bill"},
+			{typ: itemLeftCurly},
+			{typ: itemName, val: "friends"},
+			{typ: itemRightCurly},
+		}
+
+		VerifyWants(l, wants)
+	})
+}
+
 // @see https://news.ycombinator.com/item?id=8978936
 /*
 func TestLexHackerNews(t *testing.T) {

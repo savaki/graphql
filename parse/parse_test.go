@@ -14,3 +14,12 @@ func TestParseSimple(t *testing.T) {
 		So(doc, ShouldNotBeNil)
 	})
 }
+
+func TestParseSimple2(t *testing.T) {
+	Convey("Verify #lex on empty grammar", t, func() {
+		q := `query bill { friends }`
+		doc, err := Parse(q)
+		So(err, ShouldBeNil)
+		So(doc, ShouldNotBeNil)
+	})
+}

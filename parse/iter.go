@@ -31,7 +31,7 @@ func newIterator(l *lexer) *iterator {
 		item := l.nextItem()
 		iter.tokens[i] = item
 		if item.typ == itemEOF {
-			iter.tokensPos = eof
+			iter.tokensEOF = true
 			break
 		}
 	}
