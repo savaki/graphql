@@ -53,12 +53,12 @@ const (
 	itemColon      // the : separating param name from param value
 	itemComma      // the comma separating elements
 
-	// ONLY KEYWORDS BELOW THIS POINT
+// ONLY KEYWORDS BELOW THIS POINT
 	itemKeyword // used only to delimit the keywords
 	itemDot     // the cursor, spelled '.'
 	itemNil     // the untyped nil constant, easiest to treat as a keyword
 
-	// TO BE REMOVED
+// TO BE REMOVED
 	itemSpace
 	itemText         // plain text
 	itemString       // quoted string (includes quotes)
@@ -214,20 +214,20 @@ func (l *lexer) run() {
 
 // state functions
 const (
-	dot        = '.'
-	colon      = ':'
-	plus       = '+'
-	minus      = '-'
-	comma      = ','
-	leftParen  = '('
+	dot = '.'
+	colon = ':'
+	plus = '+'
+	minus = '-'
+	comma = ','
+	leftParen = '('
 	rightParen = ')'
-	leftCurly  = '{'
+	leftCurly = '{'
 	rightCurly = '}'
 )
 
 const (
 	whitespace = ", \t\n\r"
-	digits     = "0123456789"
+	digits = "0123456789"
 )
 
 func lexRoot(l *lexer) stateFn {

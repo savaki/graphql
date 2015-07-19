@@ -1,6 +1,6 @@
 package parse
 
-func Parse(q string) (*Node, error) {
+func Parse(q string) (*Document, error) {
 	l := lex("graph", q)
 	iter := newIterator(l)
 
@@ -9,7 +9,7 @@ func Parse(q string) (*Node, error) {
 		return nil, iter.err
 	}
 
-	return &Node{Operations: iter.operations}, nil
+	return &Document{Operations: iter.operations}, nil
 }
 
 func parse(iter *iterator) {
