@@ -1,10 +1,7 @@
 package parse
 
 import (
-	"encoding/json"
 	"testing"
-
-	"fmt"
 
 	. "github.com/smartystreets/goconvey/convey"
 )
@@ -15,8 +12,5 @@ func TestParseSimple(t *testing.T) {
 		node, err := Parse(q)
 		So(err, ShouldBeNil)
 		So(node, ShouldNotBeNil)
-
-		data, _ := json.MarshalIndent(node, "", "..")
-		fmt.Println(string(data))
 	})
 }

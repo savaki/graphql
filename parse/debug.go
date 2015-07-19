@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"encoding/json"
 )
 
 var (
@@ -31,4 +32,18 @@ func debug(format string, args ...interface{}) {
 		}
 		log.Printf(format, args...)
 	}
+}
+
+func (iter *iterator) dumpTokens() {
+	log.Println("------------------------------------")
+	for i := 0; i < len(iter.tokens); i++ {
+		item := iter.peekN(Pos(i))
+		log.Printf("%2d. %14s => %v\n", i, item.typ, item.val)
+	}
+}
+
+func (iter*iterator) dumpOperations() {
+	log.Println("------------------------------------")
+	data, _ := json.MarshalIndent(iter.operations, "", "..")
+	log.Println(string(data))
 }

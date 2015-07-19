@@ -3,18 +3,18 @@ package parse
 // --[ Arg ]----------------------------------------------------------
 
 type Arg struct {
-	Name  string `json:"name,omitempy"`
+	Name  string `json:"name,omitempty"`
 	Value string `json:"value"`
 }
 
-// --[ Operations ]---------------------------------------------------
+// --[ Filter ]-------------------------------------------------------
 
-type Operation struct {
+type Filter struct {
 	Name string `json:"name,omitempy"`
 	Args []*Arg `json:"args,omitempty"`
 }
 
-func (op *Operation) addArg(name, value string) *Arg {
+func (op *Filter) addArg(name, value string) *Arg {
 	arg := &Arg{
 		Name:  name,
 		Value: value,
@@ -26,11 +26,11 @@ func (op *Operation) addArg(name, value string) *Arg {
 // --[ Field ]--------------------------------------------------------
 
 type Field struct {
-	Alias      string       `json:"alias,omitempty"`
-	Name       string       `json:"name"`
-	Args       []*Arg       `json:"args,omitempty"`
-	Selector   *Selector    `json:"selector,omitempty"`
-	Operations []*Operation `json:"operations,omitempty"`
+	Alias      string    `json:"alias,omitempty"`
+	Name       string    `json:"name"`
+	Args       []*Arg    `json:"args,omitempty"`
+	Selector   *Selector `json:"selector,omitempty"`
+	Operations []*Filter `json:"operations,omitempty"`
 }
 
 func (f *Field) addArg(name, value string) *Arg {
@@ -47,10 +47,17 @@ func (f *Field) addSelector() *Selector {
 	return f.Selector
 }
 
-func (f *Field) addOperation(name string) *Operation {
-	op := &Operation{Name: name}
+func (f *Field) addFilter(name string) *Filter {
+	op := &Filter{Name: name}
 	f.Operations = append(f.Operations, op)
 	return op
+}
+
+func newField(alias, name string) *Field {
+	return &Field{
+		Alias: alias,
+		Name:  name,
+	}
 }
 
 // --[ Selector ]-----------------------------------------------------
@@ -72,8 +79,43 @@ func (s *Selector) addField(name string) *Field {
 	return s.addAlias("", name)
 }
 
+// --[ Operations ]---------------------------------------------------
+
+//go:generate go get github.com/campoy/jsonenums
+//go:generate jsonenums -type=OperationType
+type OperationType int
+
+const (
+	OpUnknown OperationType = iota
+	OpQuery
+	OpMutation
+)
+
+type Operation struct {
+	Type  OperationType `json:"type"`
+	Field *Field        `json:"field"`
+}
+
+func newOperation(opType OperationType, alias, name string) *Operation {
+	return &Operation{
+		Type:  opType,
+		Field: newField(alias, name),
+	}
+}
+
+// --[ Node ]---------------------------------------------------------
+
 type Node struct {
-	Query *Selector `json:"query"`
+	Operations []*Operation `json:"operations"`
+}
+
+func (n *Node) addOperation(opType OperationType, name string) *Operation {
+	op := &Operation{
+		Type:  opType,
+		Field: newField("", name),
+	}
+	n.Operations = append(n.Operations, op)
+	return op
 }
 
 type parseFn func(iter *iterator) parseFn

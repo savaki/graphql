@@ -9,7 +9,7 @@ func Parse(q string) (*Node, error) {
 		return nil, iter.err
 	}
 
-	return &Node{Query: iter.selector}, nil
+	return &Node{Operations: iter.operations}, nil
 }
 
 func parse(iter *iterator) {
@@ -21,10 +21,35 @@ func parse(iter *iterator) {
 
 func parseRoot(iter *iterator) parseFn {
 	item := iter.peek()
-	switch item.typ {
-	case itemQuery:
+	switch {
+	case item.typ == itemQuery:
 		iter.next()
-		return parseSelector
+		return parseQuery
+
+	default:
+		return iter.errorf("unexpected element in root => %s", item.typ)
+	}
+}
+
+func parseQuery(iter *iterator) parseFn {
+	item := iter.peek()
+	item1 := iter.peek1()
+	item2 := iter.peek2()
+
+	switch {
+	case item.typ == itemName && item1.typ == itemColon && item2.typ == itemName:
+		alias := iter.next() // alias
+		iter.next()          // colon
+		name := iter.next()  // name
+
+		iter.addQuery(alias.val, name.val)
+		return parseField
+
+	case item.typ == itemName:
+		name := iter.next() // name
+
+		iter.addQuery("", name.val)
+		return parseField
 
 	default:
 		return iter.errorf("unexpected element after query => %s", item.typ)
@@ -33,8 +58,11 @@ func parseRoot(iter *iterator) parseFn {
 
 func parseSelector(iter *iterator) parseFn {
 	item := iter.peek()
+	item1 := iter.peek1()
+	item2 := iter.peek2()
+
 	switch {
-	case item.typ == itemName && iter.peek1().typ == itemColon:
+	case item.typ == itemName && item1.typ == itemColon && item2.typ == itemName:
 		alias := iter.next() // alias
 		iter.next()          // colon
 		name := iter.next()  // name
@@ -73,8 +101,8 @@ func parseField(iter *iterator) parseFn {
 		iter.pushSelector(s)
 		return parseSelector
 
-	case item.typ == itemDot:
-		iter.next()
+	case item.typ == itemDot && iter.peek1().typ == itemName:
+		iter.next() // dot
 		return parseOperation
 
 	case item.typ == itemRightCurly:
@@ -93,7 +121,7 @@ func parseOperation(iter *iterator) parseFn {
 	case item.typ == itemName && iter.peek1().typ == itemLeftParen:
 		iter.next() // name
 		iter.next() // left paren
-		iter.addOperation(item.val)
+		iter.addFilter(item.val)
 		return parseOperationArg
 
 	default:
@@ -105,12 +133,12 @@ func parseOperation(iter *iterator) parseFn {
 func parseOperationArg(iter *iterator) parseFn {
 	item := iter.peek()
 	switch {
-	case item.typ == itemName && iter.peek1().typ == itemColon:
+	case item.typ == itemName && iter.peek1().typ == itemColon && isValue(iter.peek2()):
 		name := iter.next()  // name
 		iter.next()          // colon
 		value := iter.next() // value
 
-		iter.addOperationArg(name.val, value.val)
+		iter.addFilterArg(name.val, value.val)
 		return parseOperationArg
 
 	case item.typ == itemRightParen:
@@ -119,7 +147,7 @@ func parseOperationArg(iter *iterator) parseFn {
 
 	case item.typ == itemNumber:
 		iter.next()
-		iter.addOperationArg("", item.val)
+		iter.addFilterArg("", item.val)
 		return parseOperationArg
 
 	default:
@@ -130,8 +158,11 @@ func parseOperationArg(iter *iterator) parseFn {
 
 func parseFieldArg(iter *iterator) parseFn {
 	item := iter.peek()
+	item1 := iter.peek1()
+	item2 := iter.peek2()
+
 	switch {
-	case item.typ == itemName && iter.peek1().typ == itemColon:
+	case item.typ == itemName && item1.typ == itemColon && isValue(item2):
 		name := iter.next()  // name
 		iter.next()          // colon
 		value := iter.next() // value
@@ -146,4 +177,8 @@ func parseFieldArg(iter *iterator) parseFn {
 	default:
 		return iter.errorf("unexpected field argument element => %s", item.typ)
 	}
+}
+
+func isValue(item item) bool {
+	return item.typ == itemNumber
 }
