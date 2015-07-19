@@ -90,6 +90,9 @@ func parseSelector(iter *iterator) parseFn {
 
 func parseField(iter *iterator) parseFn {
 	item := iter.peek()
+	item1 := iter.peek1()
+	item2 := iter.peek2()
+
 	switch {
 	case item.typ == itemLeftParen:
 		iter.next()
@@ -110,7 +113,21 @@ func parseField(iter *iterator) parseFn {
 		iter.popSelector()
 		return parseSelector
 
+	case item.typ == itemName && item1.typ == itemColon && item2.typ == itemName:
+		alias := iter.next() // alias
+		iter.next()          // colon
+		name := iter.next()  // name
+
+		iter.addAlias(alias.val, name.val)
+		return parseField
+
+	case item.typ == itemName:
+		iter.next()
+		iter.addField(item.val)
+		return parseField
+
 	default:
+		iter.dumpTokens()
 		return iter.errorf("unexpected element after name => %s", item.typ)
 	}
 }
@@ -170,6 +187,12 @@ func parseFieldArg(iter *iterator) parseFn {
 		iter.addFieldArg(name.val, value.val)
 		return parseFieldArg
 
+	case isValue(item):
+		value := iter.next() // value
+
+		iter.addFieldArg("", value.val)
+		return parseFieldArg
+
 	case item.typ == itemRightParen:
 		iter.next()
 		return parseField
@@ -180,5 +203,5 @@ func parseFieldArg(iter *iterator) parseFn {
 }
 
 func isValue(item item) bool {
-	return item.typ == itemNumber
+	return item.typ == itemNumber || item.typ == itemString
 }

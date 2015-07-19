@@ -52,21 +52,12 @@ const (
 	itemNumber     // simple number, including imaginary
 	itemColon      // the : separating param name from param value
 	itemComma      // the comma separating elements
+	itemString
 
 // ONLY KEYWORDS BELOW THIS POINT
 	itemKeyword // used only to delimit the keywords
 	itemDot     // the cursor, spelled '.'
 	itemNil     // the untyped nil constant, easiest to treat as a keyword
-
-// TO BE REMOVED
-	itemSpace
-	itemText         // plain text
-	itemString       // quoted string (includes quotes)
-	itemRawString    // raw quoted string (includes quotes)
-	itemIdentifier   // alphanumeric identifier not starting with '.'
-	itemChar         // printable ASCII character; grab bag for comma etc.
-	itemCharConstant // character constant
-	itemComplex      // complex constant (1+2i); imaginary is just a number
 )
 
 var keywords = map[itemType]string{
@@ -218,6 +209,8 @@ const (
 	colon = ':'
 	plus = '+'
 	minus = '-'
+	doubleQuote = '"'
+	escape = '\\'
 	comma = ','
 	leftParen = '('
 	rightParen = ')'
@@ -319,6 +312,9 @@ func lexFieldFilter(l *lexer) stateFn {
 		l.emit(itemEOF)
 		return nil
 
+	case isAlpha(r):
+		return lexField
+
 	default:
 		log.Printf("-> %s\n", l.input[l.start:])
 		return l.errorf("expected selector")
@@ -346,6 +342,12 @@ func lexFieldArg(l *lexer) stateFn {
 		l.acceptRun(whitespace)
 		l.ignore()
 		return lexFieldArg
+
+	case r == doubleQuote:
+		if !l.scanString() {
+			return l.errorf("invalid string format for arg")
+		}
+		return lexFieldNext
 
 	case r == plus || r == minus || isNumeric(r):
 		if !l.scanNumber() {
@@ -381,7 +383,9 @@ func lexFieldArg(l *lexer) stateFn {
 		return lexFieldNext
 
 	default:
-		return l.errorf("unexpected field arg")
+		buf := make([]byte, utf8.RuneLen(r))
+		utf8.EncodeRune(buf, r)
+		return l.errorf("unexpected field arg => %v", string(buf))
 	}
 }
 
@@ -456,6 +460,29 @@ func (l *lexer) scanBool() bool {
 
 	default:
 		return false
+	}
+}
+
+func (l *lexer) scanString() bool {
+	if l.peek() != doubleQuote {
+		return false
+	}
+
+	l.next()
+	l.ignore()
+
+	for {
+		l.acceptFn(func(r rune) bool {
+			return r != doubleQuote && r != escape
+		})
+
+		switch l.peek() {
+		case doubleQuote:
+			l.emit(itemString)
+			l.next()
+			l.ignore()
+			return true
+		}
 	}
 }
 

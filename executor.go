@@ -48,7 +48,14 @@ func writeDocument(w io.Writer, store Store, doc *parse.Document) error {
 }
 
 func writeOperation(w io.Writer, store Store, qOp *parse.Operation) error {
-	field, err := store.Query(qOp.Field.Name)
+	args := make([]Arg, len(qOp.Field.Args))
+	for index, arg := range qOp.Field.Args {
+		args[index] = Arg{
+			Name:  arg.Name,
+			Value: arg.Value,
+		}
+	}
+	field, err := store.Query(qOp.Field.Name, args...)
 	if err != nil {
 		return ErrUnknownQuery
 	}

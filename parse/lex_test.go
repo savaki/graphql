@@ -149,6 +149,41 @@ func TestLexSimple2(t *testing.T) {
 	})
 }
 
+func TestLexString(t *testing.T) {
+	Convey("Verify #lex on empty grammar", t, func() {
+		l := lex("simple", `query city: GET("http://api.openweathermap.org/data/2.5/weather?lat=35&lon=139") {
+			name
+			weather: main {
+				temp: temperature
+			}
+		}
+		`)
+
+		wants := []item{
+			{typ: itemQuery},
+			{typ: itemName, val: "city"},
+			{typ: itemColon},
+			{typ: itemName, val: "GET"},
+			{typ: itemLeftParen},
+			{typ: itemString, val:"http://api.openweathermap.org/data/2.5/weather?lat=35&lon=139"},
+			{typ: itemRightParen},
+			{typ: itemLeftCurly},
+			{typ: itemName, val:"name"},
+			{typ: itemName, val:"weather"},
+			{typ: itemColon},
+			{typ: itemName, val:"main"},
+			{typ: itemLeftCurly},
+			{typ: itemName, val:"temp"},
+			{typ: itemColon},
+			{typ: itemName, val:"temperature"},
+			{typ: itemRightCurly},
+			{typ: itemRightCurly},
+		}
+
+		VerifyWants(l, wants)
+	})
+}
+
 // @see https://news.ycombinator.com/item?id=8978936
 /*
 func TestLexHackerNews(t *testing.T) {
