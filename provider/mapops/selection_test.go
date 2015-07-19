@@ -7,6 +7,7 @@ import (
 
 	"github.com/savaki/gographql"
 	. "github.com/smartystreets/goconvey/convey"
+	"bitbucket.org/dataskoop/x/log"
 )
 
 func TestStore(t *testing.T) {
@@ -38,4 +39,29 @@ func TestStore(t *testing.T) {
 			},
 		})
 	})
+}
+
+func BenchmarkStore(b *testing.B) {
+	friends := []string{
+		"james",
+		"jen",
+		"jill",
+		"joe",
+	}
+	data := map[string]interface{}{
+		"bill": map[string]interface{}{
+			"friends": friends,
+		},
+	}
+	store := New(data)
+	buf := bytes.NewBuffer(make([]byte, 16384))
+
+	for i := 0; i < b.N; i++ {
+		buf.Reset()
+		query := `query bill { friends }`
+		err := gographql.New(store).Handle(query, buf)
+		if err !=nil {
+			log.Fatalln(err)
+		}
+	}
 }
