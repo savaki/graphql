@@ -6,6 +6,7 @@ var (
 	ErrFieldNotFound  = errors.New("field not found")
 	ErrNotImplemented = errors.New("feature not implemented")
 	ErrNotAScalar     = errors.New("invalid attempt to treat non-scalar as scalar")
+	ErrUnknownQuery   = errors.New("unknown query operation")
 )
 
 // --[ Value ]--------------------------------------------------------

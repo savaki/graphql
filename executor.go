@@ -8,10 +8,6 @@ import (
 	"github.com/savaki/graphql/parse"
 )
 
-var (
-	ErrUnknownQuery = errors.New("unknown query operation")
-)
-
 type Executor struct {
 	Store Store
 }
