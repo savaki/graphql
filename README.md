@@ -35,6 +35,40 @@ func main() {
 }
 ```
 
+## Store
+
+To implement a graphql service, one needs to implement the ```graphql.Store``` interface.  For convenience and as examples, a number of default Store implementations are provided:
+
+* ```github.com/savaki/graphql/provider/mapq``` - access static  ```map[string]interface{}```
+* ```github.com/savaki/graphql/provider/jsonq``` - provides a rest gateway
+
+## Rest Call
+
+Here's an example using the ```jsonq``` provider to access a generic rest service.
+
+```go
+package main
+
+import (
+	"os"
+
+	"github.com/savaki/graphql/provider/restq"
+	"github.com/savaki/graphql"
+)
+
+func main() {
+	query := `query city: GET("http://api.openweathermap.org/data/2.5/weather?lat=35&lon=139") {
+		name
+		weather: main {
+			temperature: temp
+		}
+	}`
+
+	store := restq.New()
+	graphql.New(store).Handle(query, os.Stdout)
+}
+```
+
 ## Refs
 
 * [graphql working draft](http://facebook.github.io/graphql/) - 2015.07.02

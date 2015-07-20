@@ -52,11 +52,7 @@ func writeOperation(w io.Writer, store Store, qOp *parse.Operation) error {
 	}
 
 	io.WriteString(w, `"`)
-	if qOp.Field.Alias == "" {
-		io.WriteString(w, qOp.Field.Name)
-	} else {
-		io.WriteString(w, qOp.Field.Alias)
-	}
+	io.WriteString(w, qOp.Field.Key())
 	io.WriteString(w, `":`)
 
 	args := make([]Arg, len(qOp.Field.Args))
