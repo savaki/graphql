@@ -6,8 +6,8 @@ GraphQL implementation in go based on the working draft.
 
 ## Status
 
-* The code works, but is far from production grade and does not implement the entire working draft.
-* Exploring models for an executor, expect this to change
+The code works, but is far from production grade and does not implement the entire working draft. Exploring models for 
+an executor, expect this to change
 
 - [ ] 2.1 Comments
 - [x] 2.2 Names
