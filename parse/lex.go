@@ -45,19 +45,20 @@ type itemType int
 const (
 	itemError itemType = iota // error occurred; value is text of error
 	itemEOF
-	itemName       // named item
-	itemVariable   // variable
-	itemLeftCurly  // marks start of query block
-	itemRightCurly // right action delimiter
-	itemLeftParen  // '(' inside action
-	itemRightParen // ')' inside action
-	itemInt        // integer
-	itemFloat      // floating point number
-	itemColon      // the : separating param name from param value
-	itemComma      // the comma separating elements
-	itemString
-	itemDot // the cursor, spelled '.'
-	itemNil // the untyped nil constant, easiest to treat as a keyword
+	itemName        // named item
+	itemVariable    // variable
+	itemLeftCurly   // marks start of query block
+	itemRightCurly  // right action delimiter
+	itemLeftParen   // '(' inside action
+	itemRightParen  // ')' inside action
+	itemColon       // the : separating param name from param value
+	itemComma       // the comma separating elements
+	itemDot         // the cursor, spelled '.'
+	itemNil         // the untyped nil constant, easiest to treat as a keyword
+
+	itemIntValue    // integer
+	itemStringValue // string
+	itemFloatValue  // floating point number
 
 	// ONLY KEYWORDS BELOW THIS POINT
 	itemKeyword     // used only to delimit the keywords
@@ -651,7 +652,7 @@ func (l *lexer) scanString(fn stateFn) stateFn {
 			}
 
 		case doubleQuote:
-			l.emit(itemString)
+			l.emit(itemStringValue)
 			l.next()
 			l.ignore()
 			return fn
@@ -680,11 +681,11 @@ func (l *lexer) scanNumber(fn stateFn) stateFn {
 	// Optional leading sign.
 	l.accept("+-")
 
-	typ := itemInt
+	typ := itemIntValue
 
 	length := l.acceptRun(digits)
 	if l.accept(".") {
-		typ = itemFloat
+		typ = itemFloatValue
 		length = length + l.acceptRun(digits)
 	}
 
