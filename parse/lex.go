@@ -41,7 +41,6 @@ type itemType int
 
 const (
 	itemError itemType = iota // error occurred; value is text of error
-	itemBool                  // boolean constant
 	itemEOF
 	itemName       // alphanumeric identifier starting with '.'
 	itemLeftCurly  // marks start of query block
