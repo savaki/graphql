@@ -50,7 +50,8 @@ const (
 	itemRightCurly // right action delimiter
 	itemLeftParen  // '(' inside action
 	itemRightParen // ')' inside action
-	itemNumber     // simple number, including imaginary
+	itemInt        // integer
+	itemFloat      // floating point number
 	itemColon      // the : separating param name from param value
 	itemComma      // the comma separating elements
 	itemString
@@ -411,10 +412,7 @@ func lexArgValue(l *lexer) stateFn {
 		return l.scanString(lexArgs)
 
 	case r == plus || r == minus || isNumeric(r):
-		if !l.scanNumber() {
-			return l.errorf("invalid number format for arg")
-		}
-		return lexArgs
+		return l.scanNumber(lexArgs)
 
 	case strings.HasPrefix(l.input[l.pos:], keywords[itemTrue]):
 		l.acceptOrdered("true")
@@ -605,28 +603,30 @@ func (l *lexer) scanString(fn stateFn) stateFn {
 	}
 }
 
-func (l *lexer) scanNumber() bool {
+func (l *lexer) scanNumber(fn stateFn) stateFn {
 	// Optional leading sign.
 	l.accept("+-")
 
+	typ := itemInt
+
 	length := l.acceptRun(digits)
 	if l.accept(".") {
+		typ = itemFloat
 		length = length + l.acceptRun(digits)
 	}
 
 	if length == 0 {
 		// no digits
-		return false
+		return l.errorf("digits must be at least 0")
 	}
 
 	// Next thing mustn't be alphanumeric.
-	if isAlphaNumeric(l.peek()) {
-		l.next()
-		return false
+	if r := l.peek(); isAlpha(r) {
+		return l.errorf("numbers may not immediately be followed by alphas")
 	}
 
-	l.emit(itemNumber)
-	return true
+	l.emit(typ)
+	return fn
 }
 
 func isComment(r rune) bool {

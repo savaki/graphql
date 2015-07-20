@@ -164,5 +164,5 @@ func parseFieldArg(iter *iterator) parseFn {
 }
 
 func isValue(item item) bool {
-	return item.typ == itemNumber || item.typ == itemString
+	return item.typ == itemInt || item.typ == itemString
 }
