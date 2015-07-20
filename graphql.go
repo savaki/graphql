@@ -21,27 +21,11 @@ type Arg struct {
 	Value Value
 }
 
-// --[ Filter ]-------------------------------------------------------
-
-type Filter struct {
-	name string
-	args []Arg
-}
-
-func (f *Filter) Name() string {
-	return f.name
-}
-
-func (f *Filter) Args() []Arg {
-	return f.args
-}
-
 // --[ Context ]------------------------------------------------------
 
 type Context struct {
-	Name    string
-	Args    []Arg
-	Filters []Filter
+	Name string
+	Args []Arg
 }
 
 // --[ Selection ]----------------------------------------------------
