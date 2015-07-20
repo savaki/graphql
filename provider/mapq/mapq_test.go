@@ -3,9 +3,9 @@ package mapq
 import (
 	"bytes"
 	"encoding/json"
+	"log"
 	"testing"
 
-	"bitbucket.org/dataskoop/x/log"
 	"github.com/savaki/graphql"
 	. "github.com/smartystreets/goconvey/convey"
 )
