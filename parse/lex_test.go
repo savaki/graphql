@@ -146,6 +146,54 @@ func TestLexEmpty(t *testing.T) {
 	})
 }
 
+func TestLexVariables(t *testing.T) {
+	Convey("Verify #lex on grammar with variables", t, func() {
+		l := lex("variables", `
+			query getZuckProfile($devicePicSize: Int) {
+				user(id: 4) {
+					id
+					name
+					profilePic(size: $devicePicSize)
+				}
+			}`)
+
+		wants := []item{
+			{typ: itemQuery},
+			{typ: itemName, val: "getZuckProfile"},
+			{typ: itemLeftParen},
+			{typ: itemVariable, val: "devicePicSize"},
+			{typ: itemColon},
+			{typ: itemIntType},
+			{typ: itemRightParen},
+			{typ: itemLeftCurly},
+
+			{typ: itemName, val: "user"},
+			{typ: itemLeftParen},
+			{typ: itemName, val: "id"},
+			{typ: itemColon},
+			{typ: itemInt, val: "4"},
+			{typ: itemRightParen},
+			{typ: itemLeftCurly},
+
+			{typ: itemName, val: "id"},
+			{typ: itemName, val: "name"},
+			{typ: itemName, val: "profilePic"},
+			{typ: itemLeftParen},
+			{typ: itemName, val: "size"},
+			{typ: itemColon},
+			{typ: itemVariable, val: "devicePicSize"},
+			{typ: itemRightParen},
+
+			{typ: itemRightCurly},
+			{typ: itemRightCurly},
+
+			{typ: itemEOF},
+		}
+
+		VerifyWants(l, wants)
+	})
+}
+
 func TestLexSimple2(t *testing.T) {
 	Convey("Verify #lex on empty grammar", t, func() {
 		l := lex("simple", `query bill { friends }`)
@@ -397,46 +445,46 @@ func TestLexHackerNews(t *testing.T) {
 
 		wants := []item{
 			{typ: itemQuery},
-			{typ: itemName, val:"viewer"},
+			{typ: itemName, val: "viewer"},
 			{typ: itemLeftParen},
 			{typ: itemRightParen},
 			{typ: itemLeftCurly},
 
 			// posts
-			{typ: itemName, val:"posts"},
+			{typ: itemName, val: "posts"},
 			{typ: itemLeftCurly},
-			{typ: itemName, val:"node"},
+			{typ: itemName, val: "node"},
 			{typ: itemLeftCurly},
-			{typ: itemName, val:"author"},
+			{typ: itemName, val: "author"},
 			{typ: itemLeftCurly},
-			{typ: itemName, val:"id"},
-			{typ: itemName, val:"name"},
-			{typ: itemName, val:"favorite_color"},
+			{typ: itemName, val: "id"},
+			{typ: itemName, val: "name"},
+			{typ: itemName, val: "favorite_color"},
 			{typ: itemRightCurly},
 			{typ: itemRightCurly},
 			{typ: itemRightCurly},
 
 			// friends
-			{typ: itemName, val:"friends"},
+			{typ: itemName, val: "friends"},
 			{typ: itemLeftCurly},
-			{typ: itemName, val:"node"},
+			{typ: itemName, val: "node"},
 			{typ: itemLeftCurly},
-			{typ: itemName, val:"id"},
-			{typ: itemName, val:"name"},
-			{typ: itemName, val:"favorite_color"},
+			{typ: itemName, val: "id"},
+			{typ: itemName, val: "name"},
+			{typ: itemName, val: "favorite_color"},
 			{typ: itemRightCurly},
 			{typ: itemRightCurly},
 
 			// notifications
-			{typ: itemName, val:"notifications"},
+			{typ: itemName, val: "notifications"},
 			{typ: itemLeftCurly},
-			{typ: itemName, val:"node"},
+			{typ: itemName, val: "node"},
 			{typ: itemLeftCurly},
-			{typ: itemName, val:"source"},
+			{typ: itemName, val: "source"},
 			{typ: itemLeftCurly},
-			{typ: itemName, val:"id"},
-			{typ: itemName, val:"name"},
-			{typ: itemName, val:"favorite_color"},
+			{typ: itemName, val: "id"},
+			{typ: itemName, val: "name"},
+			{typ: itemName, val: "favorite_color"},
 			{typ: itemRightCurly},
 			{typ: itemRightCurly},
 			{typ: itemRightCurly},

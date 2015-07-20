@@ -4,9 +4,9 @@ package parse
 
 import "fmt"
 
-const _itemType_name = "itemErroritemEOFitemNameitemLeftCurlyitemRightCurlyitemLeftParenitemRightParenitemIntitemFloatitemColonitemCommaitemStringitemDotitemNilitemKeyworditemQueryitemMutationitemFragmentitemEllipsesitemTrueitemFalseitemOn"
+const _itemType_name = "itemErroritemEOFitemNameitemVariableitemLeftCurlyitemRightCurlyitemLeftParenitemRightParenitemIntitemFloatitemColonitemCommaitemStringitemDotitemNilitemKeyworditemQueryitemMutationitemFragmentitemEllipsesitemTrueitemFalseitemOnitemIntTypeitemFloatTypeitemBooleanTypeitemEnumTypeitemArrayTypeitemObjectType"
 
-var _itemType_index = [...]uint8{0, 9, 16, 24, 37, 51, 64, 78, 85, 94, 103, 112, 122, 129, 136, 147, 156, 168, 180, 192, 200, 209, 215}
+var _itemType_index = [...]uint16{0, 9, 16, 24, 36, 49, 63, 76, 90, 97, 106, 115, 124, 134, 141, 148, 159, 168, 180, 192, 204, 212, 221, 227, 238, 251, 266, 278, 291, 305}
 
 func (i itemType) String() string {
 	if i < 0 || i+1 >= itemType(len(_itemType_index)) {

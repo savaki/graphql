@@ -45,7 +45,8 @@ type itemType int
 const (
 	itemError itemType = iota // error occurred; value is text of error
 	itemEOF
-	itemName       // alphanumeric identifier starting with '.'
+	itemName       // named item
+	itemVariable   // variable
 	itemLeftCurly  // marks start of query block
 	itemRightCurly // right action delimiter
 	itemLeftParen  // '(' inside action
@@ -59,24 +60,45 @@ const (
 	itemNil // the untyped nil constant, easiest to treat as a keyword
 
 	// ONLY KEYWORDS BELOW THIS POINT
-	itemKeyword  // used only to delimit the keywords
-	itemQuery    // query keyword
-	itemMutation // mutations keyword
-	itemFragment // fragment keyword
-	itemEllipses // fragment definition, '...'
-	itemTrue     // true
-	itemFalse    // false
-	itemOn       // fragment keyword
+	itemKeyword     // used only to delimit the keywords
+	itemQuery       // query keyword
+	itemMutation    // mutations keyword
+	itemFragment    // fragment keyword
+	itemEllipses    // fragment definition, '...'
+	itemTrue        // true
+	itemFalse       // false
+	itemOn          // fragment keyword
+	itemIntType     // represents abstract Int type
+	itemFloatType   // represents abstract Float type
+	itemBooleanType // represents abstract Boolean type
+	itemEnumType    // represents abstract Enum type
+	itemArrayType   // represents abstract Array type
+	itemObjectType  // represents abstract Object type
 )
 
 var keywords = map[itemType]string{
-	itemQuery:    "query",
-	itemMutation: "mutation",
-	itemFragment: "fragment",
-	itemEllipses: "...",
-	itemTrue:     "true",
-	itemFalse:    "false",
-	itemOn:       "on",
+	itemQuery:       "query",
+	itemMutation:    "mutation",
+	itemFragment:    "fragment",
+	itemEllipses:    "...",
+	itemTrue:        "true",
+	itemFalse:       "false",
+	itemOn:          "on",
+	itemIntType:     "Int",
+	itemFloatType:   "Float",
+	itemBooleanType: "Boolean",
+	itemEnumType:    "Enum",
+	itemArrayType:   "Array",
+	itemObjectType:  "Object",
+}
+
+var allTypes = []itemType{
+	itemIntType,
+	itemFloatType,
+	itemBooleanType,
+	itemEnumType,
+	itemArrayType,
+	itemObjectType,
 }
 
 var unicodeMatcher = regexp.MustCompile(`u([0-9A-Fa-f]){4}`)
@@ -238,6 +260,7 @@ func (l *lexer) run() {
 
 // state functions
 const (
+	dollar      = '$'
 	dot         = '.'
 	colon       = ':'
 	plus        = '+'
@@ -382,12 +405,10 @@ func lexArgs(l *lexer) stateFn {
 		return l.ignoreComment(lexArgs)
 
 	case isAlpha(r):
-		return l.scanField(lexArgs)
+		return l.scanField(lexColon)
 
-	case r == colon && l.token[0] == itemName:
-		l.next()
-		l.emit(itemColon)
-		return lexArgValue
+	case r == dollar:
+		return l.scanVariable(lexColon)
 
 	case r == rightParen:
 		l.next()
@@ -396,6 +417,25 @@ func lexArgs(l *lexer) stateFn {
 
 	default:
 		return l.errorf("unexpected argument")
+	}
+}
+
+func lexColon(l *lexer) stateFn {
+	r := l.peek()
+	switch {
+	case isWhitespace(r):
+		return l.ignoreWhitespace(lexColon)
+
+	case isComment(r):
+		return l.ignoreComment(lexColon)
+
+	case r == colon:
+		l.next()
+		l.emit(itemColon)
+		return lexArgValue
+
+	default:
+		return l.errorf("expected colon")
 	}
 }
 
@@ -414,6 +454,9 @@ func lexArgValue(l *lexer) stateFn {
 	case r == plus || r == minus || isNumeric(r):
 		return l.scanNumber(lexArgs)
 
+	case r == dollar:
+		return l.scanVariable(lexArgs)
+
 	case strings.HasPrefix(l.input[l.pos:], keywords[itemTrue]):
 		l.acceptOrdered("true")
 		l.emit(itemTrue)
@@ -423,6 +466,9 @@ func lexArgValue(l *lexer) stateFn {
 		l.acceptOrdered("false")
 		l.emit(itemFalse)
 		return lexArgs
+
+	case isAlpha(r):
+		return l.scanType(lexArgs)
 
 	default:
 		return l.errorf("unexpected arg value")
@@ -566,6 +612,22 @@ func (l *lexer) scanField(fn stateFn) stateFn {
 	return fn
 }
 
+func (l *lexer) scanVariable(fn stateFn) stateFn {
+	if r := l.peek(); r != dollar {
+		return l.errorf("invalid variable; variabls must start with a $")
+	}
+	l.next()
+	l.ignore()
+
+	if l.acceptFn(isAlpha) == 0 {
+		return l.errorf("invalid variable; $ must be followed by an alpha")
+	}
+	l.acceptFn(isAlphaNumeric)
+	l.emit(itemVariable)
+
+	return fn
+}
+
 func (l *lexer) scanString(fn stateFn) stateFn {
 	if r := l.peek(); r != doubleQuote {
 		return l.errorf("strings must begin with a %v", doubleQuote)
@@ -601,6 +663,17 @@ func (l *lexer) scanString(fn stateFn) stateFn {
 			l.next()
 		}
 	}
+}
+
+func (l *lexer) scanType(fn stateFn) stateFn {
+	for _, typ := range allTypes {
+		if l.acceptOrdered(keywords[typ]) {
+			l.emit(typ)
+			return fn
+		}
+	}
+
+	return l.errorf("unexpected type")
 }
 
 func (l *lexer) scanNumber(fn stateFn) stateFn {
