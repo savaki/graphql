@@ -44,7 +44,6 @@ const (
 	itemBool                  // boolean constant
 	itemEOF
 	itemName       // alphanumeric identifier starting with '.'
-	itemQuery      // query keyword
 	itemLeftCurly  // marks start of query block
 	itemRightCurly // right action delimiter
 	itemLeftParen  // '(' inside action
@@ -53,15 +52,24 @@ const (
 	itemColon      // the : separating param name from param value
 	itemComma      // the comma separating elements
 	itemString
+	itemDot // the cursor, spelled '.'
+	itemNil // the untyped nil constant, easiest to treat as a keyword
 
 	// ONLY KEYWORDS BELOW THIS POINT
-	itemKeyword // used only to delimit the keywords
-	itemDot     // the cursor, spelled '.'
-	itemNil     // the untyped nil constant, easiest to treat as a keyword
+	itemKeyword  // used only to delimit the keywords
+	itemQuery    // query keyword
+	itemMutation // mutations keyword
+	itemEllipses // fragment definition, '...'
+	itemTrue     // true
+	itemFalse    // false
 )
 
 var keywords = map[itemType]string{
-	itemQuery: "query",
+	itemQuery:    "query",
+	itemMutation: "mutation",
+	itemEllipses: "...",
+	itemTrue:     "true",
+	itemFalse:    "false",
 }
 
 const eof = -1
@@ -173,6 +181,7 @@ func (l *lexer) lineNumber() int {
 // errorf returns an error token and terminates the scan by passing
 // back a nil pointer that will be the next state, terminating l.nextItem.
 func (l *lexer) errorf(format string, args ...interface{}) stateFn {
+	log.Printf("error => %#v\n", l.input[l.pos:])
 	log.Printf(format, args...)
 	l.items <- item{itemError, l.start, 0, fmt.Sprintf(format, args...)}
 	return nil
@@ -234,11 +243,11 @@ func lexRoot(l *lexer) stateFn {
 	case strings.HasPrefix(l.input[l.pos:], keywords[itemQuery]):
 		return lexQuery
 
+	case strings.HasPrefix(l.input[l.pos:], keywords[itemMutation]):
+		return lexMutation
+
 	case r == leftCurly:
-		l.depth++
-		l.next()
-		l.emit(itemLeftCurly)
-		return lexField
+		return lexSelection
 
 	case r == eof:
 		l.emit(itemEOF)
@@ -249,6 +258,7 @@ func lexRoot(l *lexer) stateFn {
 	}
 }
 
+// lexQuery assumes the buffer begins with the query keyword
 func lexQuery(l *lexer) stateFn {
 	l.pos += Pos(len(keywords[itemQuery]))
 	l.emit(itemQuery)
@@ -261,211 +271,192 @@ func lexQuery(l *lexer) stateFn {
 	return lexField
 }
 
-func lexField(l *lexer) stateFn {
-	if l.acceptRun(whitespace) > 0 {
-		l.ignore()
+// lexMutation assumes the buffer begins with the mutation keyword
+func lexMutation(l *lexer) stateFn {
+	l.pos += Pos(len(keywords[itemMutation]))
+	l.emit(itemMutation)
+
+	// query must be followed by at least one whitespace
+	if r := l.peek(); !isSpace(r) {
+		return l.errorf("query keyword must be followed by a whitespace")
 	}
 
-	// scan field
-	if !l.scanField() {
-		return l.errorf("fields must begin with either an alpha or an underscore")
-	}
-
-	return lexFieldFilter
+	return lexField
 }
 
-func lexFieldFilter(l *lexer) stateFn {
+func lexField(l *lexer) stateFn {
 	r := l.peek()
 	switch {
 	case isSpace(r):
-		l.acceptRun(whitespace)
+		l.accept(whitespace)
 		l.ignore()
-		return lexFieldFilter
-
-	case r == dot && l.token[0] == itemName:
-		l.next()
-		l.emit(itemDot)
 		return lexField
 
-	case r == leftParen && l.token[0] == itemName:
+	case isAlpha(r):
+		l.acceptFn(isAlpha)
+		l.acceptFn(isAlphaNumeric)
+		l.emit(itemName)
+		return lexAfterField
+
+	default:
+		return l.errorf("expected character for operation name")
+	}
+}
+
+func lexAfterField(l *lexer) stateFn {
+	r := l.peek()
+	switch {
+	case isSpace(r):
+		l.accept(whitespace)
+		l.ignore()
+		return lexAfterField
+
+	case r == leftParen:
 		l.next()
 		l.emit(itemLeftParen)
-		return lexFieldArg
+		return lexArgs
+
+	case r == leftCurly:
+		return lexSelection
+
+	case r == rightCurly:
+		return lexEndSelection
 
 	case r == colon && l.token[0] == itemName && l.token[1] != itemColon:
 		l.next()
 		l.emit(itemColon)
 		return lexField
 
-	case r == leftCurly:
-		l.next()
-		l.emit(itemLeftCurly)
-		l.depth++
-		return lexField
-
-	case r == rightCurly && l.depth > 0:
-		l.next()
-		l.emit(itemRightCurly)
-		l.depth--
-		return lexPostField
-
-	case r == dot:
-		l.next()
-		l.emit(itemDot)
-		return lexField
-
-	case r == eof:
-		l.emit(itemEOF)
-		return nil
-
 	case isAlpha(r):
 		return lexField
 
 	default:
-		log.Printf("-> %s\n", l.input[l.start:])
-		return l.errorf("expected selector")
+		return l.errorf("unexpected values after field")
 	}
 }
 
-func lexPostField(l *lexer) stateFn {
+func lexArgs(l *lexer) stateFn {
 	r := l.peek()
 	switch {
 	case isSpace(r):
 		l.acceptRun(whitespace)
 		l.ignore()
-		return lexFieldFilter
+		return lexArgs
+
+	case isAlpha(r):
+		l.acceptFn(isAlpha)
+		l.acceptFn(isAlphaNumeric)
+		l.emit(itemName)
+		return lexArgs
+
+	case r == colon && l.token[0] == itemName:
+		l.next()
+		l.emit(itemColon)
+		return lexArgValue
+
+	case r == rightParen:
+		l.next()
+		l.emit(itemRightParen)
+		return lexSelection
 
 	default:
-		l.emit(itemEOF)
-		return nil
+		return l.errorf("unexpected argument")
 	}
 }
 
-func lexFieldArg(l *lexer) stateFn {
+func lexArgValue(l *lexer) stateFn {
 	r := l.peek()
 	switch {
 	case isSpace(r):
 		l.acceptRun(whitespace)
 		l.ignore()
-		return lexFieldArg
+		return lexArgValue
 
 	case r == doubleQuote:
 		if !l.scanString() {
 			return l.errorf("invalid string format for arg")
 		}
-		return lexFieldNext
+		return lexArgs
 
 	case r == plus || r == minus || isNumeric(r):
 		if !l.scanNumber() {
 			return l.errorf("invalid number format for arg")
 		}
-		return lexFieldNext
+		return lexArgs
 
-	case r == 't' || r == 'f':
-		if !l.scanBool() {
-			return l.errorf("invalid bool format for arg")
-		}
-		return lexFieldNext
+	case strings.HasPrefix(l.input[l.pos:], keywords[itemTrue]):
+		l.acceptOrdered("true")
+		l.emit(itemTrue)
+		return lexArgs
 
-	case r == rightParen:
+	case strings.HasPrefix(l.input[l.pos:], keywords[itemFalse]):
+		l.acceptOrdered("false")
+		l.emit(itemFalse)
+		return lexArgs
+
+	default:
+		return l.errorf("unexpected arg value")
+	}
+}
+
+func lexSelection(l *lexer) stateFn {
+	r := l.peek()
+	switch {
+	case isSpace(r):
+		l.acceptRun(whitespace)
+		l.ignore()
+		return lexSelection
+
+	case r == leftCurly:
+		l.depth++
 		l.next()
-		l.emit(itemRightParen)
-		return lexFieldFilter
+		l.emit(itemLeftCurly)
+		return lexInsideSelection
 
-	case r == comma && l.token[0] == itemName:
-		l.next()
-		l.emit(itemComma)
-		return lexFieldArg
+	default:
+		return l.errorf("expected begin selection")
+	}
+}
 
-	case r == colon && l.token[0] == itemName:
-		l.next()
-		l.emit(itemColon)
-		return lexFieldValue
+func lexInsideSelection(l *lexer) stateFn {
+	r := l.peek()
+	switch {
+	case isSpace(r):
+		l.acceptRun(whitespace)
+		l.ignore()
+		return lexInsideSelection
 
 	case isAlpha(r):
-		l.next()
-		l.acceptFn(isAlphaNumeric)
-		l.emit(itemName)
-		return lexFieldNext
+		return lexField
+
+	case r == rightCurly:
+		return lexEndSelection
 
 	default:
-		buf := make([]byte, utf8.RuneLen(r))
-		utf8.EncodeRune(buf, r)
-		return l.errorf("unexpected field arg => %v", string(buf))
+		return l.errorf("expected field inside selection")
 	}
 }
 
-func lexFieldValue(l *lexer) stateFn {
+func lexEndSelection(l *lexer) stateFn {
 	r := l.peek()
 	switch {
 	case isSpace(r):
 		l.acceptRun(whitespace)
 		l.ignore()
-		return lexFieldValue
+		return lexEndSelection
 
-	case r == plus || r == minus || isNumeric(r):
-		if !l.scanNumber() {
-			return l.errorf("invalid number format for arg")
+	case r == rightCurly:
+		l.depth--
+		l.next()
+		l.emit(itemRightCurly)
+		if l.depth == 0 {
+			return lexRoot
+		} else {
+			return lexInsideSelection
 		}
-		return lexFieldNext
-
-	case r == 't' || r == 'f':
-		if !l.scanBool() {
-			return l.errorf("invalid bool format for arg")
-		}
-		return lexFieldNext
 
 	default:
-		return l.errorf("unexpected field value")
-	}
-}
-
-// lexFieldNext scans the content immediately after a field name
-func lexFieldNext(l *lexer) stateFn {
-	r := l.peek()
-	switch {
-	case isSpace(r):
-		l.acceptRun(whitespace)
-		l.ignore()
-		return lexFieldNext
-
-	case r == comma:
-		l.next()
-		l.emit(itemComma)
-		return lexFieldArg
-
-	case r == colon && l.token[0] == itemName:
-		l.next()
-		l.emit(itemColon)
-		return lexFieldValue
-
-	case r == rightParen:
-		l.next()
-		l.emit(itemRightParen)
-		return lexFieldFilter
-
-	default:
-		return l.errorf("argument or ) expected")
-	}
-}
-
-func (l *lexer) scanField() bool {
-	if length := l.acceptFn(isAlpha); length == 0 {
-		return false
-	}
-	l.acceptFn(isAlphaNumeric)
-	l.emit(itemName)
-	return true
-}
-
-func (l *lexer) scanBool() bool {
-	switch {
-	case l.acceptOrdered("true") || l.acceptOrdered("false"):
-		l.emit(itemBool)
-		return true
-
-	default:
-		return false
+		return l.errorf("expected right curly")
 	}
 }
 

@@ -35,7 +35,7 @@ func TestLexComplex1(t *testing.T) {
 	Convey("Verify #lex on complex grammar", t, func() {
 		l := lex("complex",
 			`query user(id:123) {
-				close_friends: friends.max(5).distance(1) {
+				close_friends: friends(max: 5, distance: 1) {
 					picture
 				}
 			}`)
@@ -52,14 +52,12 @@ func TestLexComplex1(t *testing.T) {
 			{typ: itemName, val: "close_friends"},
 			{typ: itemColon},
 			{typ: itemName, val: "friends"},
-			{typ: itemDot},
+			{typ: itemLeftParen},
 			{typ: itemName, val: "max"},
-			{typ: itemLeftParen},
+			{typ: itemColon},
 			{typ: itemNumber, val: "5"},
-			{typ: itemRightParen},
-			{typ: itemDot},
 			{typ: itemName, val: "distance"},
-			{typ: itemLeftParen},
+			{typ: itemColon},
 			{typ: itemNumber, val: "1"},
 			{typ: itemRightParen},
 			{typ: itemLeftCurly},
@@ -164,7 +162,7 @@ func TestLexSimple2(t *testing.T) {
 
 func TestLexString(t *testing.T) {
 	Convey("Verify #lex on empty grammar", t, func() {
-		l := lex("simple", `query city: GET("http://api.openweathermap.org/data/2.5/weather?lat=35&lon=139") {
+		l := lex("simple", `query city: GET(url: "http://api.openweathermap.org/data/2.5/weather?lat=35&lon=139") {
 			name
 			weather: main {
 				temp: temperature
@@ -178,6 +176,8 @@ func TestLexString(t *testing.T) {
 			{typ: itemColon},
 			{typ: itemName, val: "GET"},
 			{typ: itemLeftParen},
+			{typ: itemName, val: "url"},
+			{typ: itemColon},
 			{typ: itemString, val: "http://api.openweathermap.org/data/2.5/weather?lat=35&lon=139"},
 			{typ: itemRightParen},
 			{typ: itemLeftCurly},

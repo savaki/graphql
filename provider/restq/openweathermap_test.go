@@ -20,7 +20,7 @@ func TestOpenWeatherMap(t *testing.T) {
 			}
 		}
 
-		query := `query city: GET("http://api.openweathermap.org/data/2.5/weather?lat=35&lon=139") {
+		query := `query city: GET(url:"http://api.openweathermap.org/data/2.5/weather?lat=35&lon=139") {
 			name
 			weather: main {
 				temperature: temp
