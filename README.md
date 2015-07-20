@@ -1,6 +1,7 @@
 # gographql
 
 [![GoDoc](https://godoc.org/github.com/savaki/graphql?status.svg)](https://godoc.org/github.com/savaki/graphql)
+[![Build Status](https://snap-ci.com/savaki/graphql/branch/master/build_image)](https://snap-ci.com/savaki/graphql/branch/master)
 
 GraphQL implementation in go based on the working draft.
 
