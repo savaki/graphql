@@ -17,7 +17,7 @@ This is a Go implementation of GraphQL.  The intent is to create a high quality 
 
 The famous "hello world" in graphql:
 
-```golang
+```go
 package main
 
 import (
