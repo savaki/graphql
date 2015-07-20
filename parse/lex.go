@@ -1,10 +1,14 @@
-// Copyright 2011 The Go Authors. All rights reserved.
+// Copyright 2015 Matt Ho. All rights reserved.
+//
+// Original source courtesy the Go Team 20111
+//
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 package parse
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -58,11 +62,10 @@ const (
 	itemQuery    // query keyword
 	itemMutation // mutations keyword
 	itemFragment // fragment keyword
-	itemOn       // fragment keyword
 	itemEllipses // fragment definition, '...'
 	itemTrue     // true
 	itemFalse    // false
-	itemComment  // indicates start of comment
+	itemOn       // fragment keyword
 )
 
 var keywords = map[itemType]string{
@@ -73,8 +76,9 @@ var keywords = map[itemType]string{
 	itemTrue:     "true",
 	itemFalse:    "false",
 	itemOn:       "on",
-	itemComment:  "//",
 }
+
+var unicodeMatcher = regexp.MustCompile(`u([0-9A-Fa-f]){4}`)
 
 const eof = -1
 
@@ -141,6 +145,23 @@ func (l *lexer) accept(valid string) bool {
 	}
 	l.backup()
 	return false
+}
+
+// accept consumes a 5 digit unicode value u/[0-9A-Fa-f]{4}/
+func (l *lexer) acceptUnicode() bool {
+	if !unicodeMatcher.MatchString(l.input[l.pos:]) {
+		l.backup()
+		return false
+	}
+
+	// unicode characters are 5 characters beginning from the u
+	l.next()
+	l.next()
+	l.next()
+	l.next()
+	l.next()
+
+	return true
 }
 
 func (l *lexer) acceptOrdered(valid string) bool {
@@ -230,25 +251,20 @@ const (
 )
 
 const (
-	whitespace = ", \t\n\r"
-	digits     = "0123456789"
+	whitespace       = ", \t\n\r"
+	lineTerminator   = "\n\r"
+	digits           = "0123456789"
+	escapeCharacters = `"\/bfnrt` // see - https://github.com/facebook/graphql/blob/master/Section%208%20--%20Grammar.md
 )
 
 func lexRoot(l *lexer) stateFn {
 	r := l.peek()
 	switch {
 	case isWhitespace(r):
-		l.accept(whitespace)
-		l.ignore()
-		return lexRoot
+		return l.ignoreWhitespace(lexRoot)
 
-	case strings.HasPrefix(l.input[l.pos:], keywords[itemComment]):
-		l.acceptOrdered(keywords[itemComment])
-		l.acceptFn(func(r rune) bool {
-			return !isEndOfLine(r)
-		})
-		l.ignore()
-		return lexRoot
+	case isComment(r):
+		return l.ignoreComment(lexRoot)
 
 	case strings.HasPrefix(l.input[l.pos:], keywords[itemQuery]):
 		return lexQuery
@@ -273,12 +289,12 @@ func lexRoot(l *lexer) stateFn {
 
 // lexQuery assumes the buffer begins with the query keyword
 func lexQuery(l *lexer) stateFn {
-	l.pos += Pos(len(keywords[itemQuery]))
+	l.acceptOrdered(keywords[itemQuery])
 	l.emit(itemQuery)
 
-	// query must be followed by at least one whitespace
-	if !isWhitespace(l.peek()) {
-		return l.errorf("query keyword must be followed by a whitespace")
+	// must be followed by at least one whitespace or comment
+	if r := l.peek(); !isWhitespace(r) && !isComment(r) {
+		return l.errorf("query keyword must be followed by either a whitespace or comment")
 	}
 
 	return lexField
@@ -286,12 +302,12 @@ func lexQuery(l *lexer) stateFn {
 
 // lexMutation assumes the buffer begins with the mutation keyword
 func lexMutation(l *lexer) stateFn {
-	l.pos += Pos(len(keywords[itemMutation]))
+	l.acceptOrdered(keywords[itemMutation])
 	l.emit(itemMutation)
 
-	// query must be followed by at least one whitespace
-	if r := l.peek(); !isWhitespace(r) {
-		return l.errorf("mutation keyword must be followed by a whitespace")
+	// must be followed by at least one whitespace or comment
+	if r := l.peek(); !isWhitespace(r) && !isComment(r) {
+		return l.errorf("query keyword must be followed by either a whitespace or comment")
 	}
 
 	return lexField
@@ -301,15 +317,13 @@ func lexField(l *lexer) stateFn {
 	r := l.peek()
 	switch {
 	case isWhitespace(r):
-		l.accept(whitespace)
-		l.ignore()
-		return lexField
+		return l.ignoreWhitespace(lexField)
+
+	case isComment(r):
+		return l.ignoreComment(lexField)
 
 	case isAlpha(r):
-		l.acceptFn(isAlpha)
-		l.acceptFn(isAlphaNumeric)
-		l.emit(itemName)
-		return lexAfterField
+		return l.scanField(lexAfterField)
 
 	default:
 		return l.errorf("expected character for operation name")
@@ -320,9 +334,10 @@ func lexAfterField(l *lexer) stateFn {
 	r := l.peek()
 	switch {
 	case isWhitespace(r):
-		l.accept(whitespace)
-		l.ignore()
-		return lexAfterField
+		return l.ignoreWhitespace(lexAfterField)
+
+	case isComment(r):
+		return l.ignoreComment(lexAfterField)
 
 	case r == leftParen:
 		l.next()
@@ -346,10 +361,7 @@ func lexAfterField(l *lexer) stateFn {
 		return lexAfterField
 
 	case isAlpha(r) && l.token[0] == itemEllipses:
-		l.acceptFn(isAlpha)
-		l.acceptFn(isAlphaNumeric)
-		l.emit(itemName)
-		return lexAfterField
+		return l.scanField(lexAfterField)
 
 	case isAlpha(r):
 		return lexField
@@ -363,15 +375,13 @@ func lexArgs(l *lexer) stateFn {
 	r := l.peek()
 	switch {
 	case isWhitespace(r):
-		l.acceptRun(whitespace)
-		l.ignore()
-		return lexArgs
+		return l.ignoreWhitespace(lexArgs)
+
+	case isComment(r):
+		return l.ignoreComment(lexArgs)
 
 	case isAlpha(r):
-		l.acceptFn(isAlpha)
-		l.acceptFn(isAlphaNumeric)
-		l.emit(itemName)
-		return lexArgs
+		return l.scanField(lexArgs)
 
 	case r == colon && l.token[0] == itemName:
 		l.next()
@@ -392,15 +402,13 @@ func lexArgValue(l *lexer) stateFn {
 	r := l.peek()
 	switch {
 	case isWhitespace(r):
-		l.acceptRun(whitespace)
-		l.ignore()
-		return lexArgValue
+		return l.ignoreWhitespace(lexArgValue)
+
+	case isComment(r):
+		return l.ignoreComment(lexArgValue)
 
 	case r == doubleQuote:
-		if !l.scanString() {
-			return l.errorf("invalid string format for arg")
-		}
-		return lexArgs
+		return l.scanString(lexArgs)
 
 	case r == plus || r == minus || isNumeric(r):
 		if !l.scanNumber() {
@@ -427,9 +435,10 @@ func lexSelection(l *lexer) stateFn {
 	r := l.peek()
 	switch {
 	case isWhitespace(r):
-		l.acceptRun(whitespace)
-		l.ignore()
-		return lexSelection
+		return l.ignoreWhitespace(lexSelection)
+
+	case isComment(r):
+		return l.ignoreComment(lexSelection)
 
 	case r == leftCurly:
 		l.depth++
@@ -446,9 +455,10 @@ func lexEndSelection(l *lexer) stateFn {
 	r := l.peek()
 	switch {
 	case isWhitespace(r):
-		l.acceptRun(whitespace)
-		l.ignore()
-		return lexEndSelection
+		return l.ignoreWhitespace(lexEndSelection)
+
+	case isComment(r):
+		return l.ignoreComment(lexEndSelection)
 
 	case r == rightCurly:
 		l.depth--
@@ -469,9 +479,9 @@ func lexFragment(l *lexer) stateFn {
 	l.pos += Pos(len(keywords[itemFragment]))
 	l.emit(itemFragment)
 
-	// fragment must be followed by at least one whitespace
-	if r := l.peek(); !isWhitespace(r) {
-		return l.errorf("fragment keyword must be followed by a whitespace")
+	// fragment must be followed by at least one whitespace or comment
+	if r := l.peek(); !isWhitespace(r) && !isComment(r) {
+		return l.errorf("fragment keyword must be followed by a whitespace or a comment")
 	}
 
 	return lexFragmentName
@@ -481,15 +491,13 @@ func lexFragmentName(l *lexer) stateFn {
 	r := l.peek()
 	switch {
 	case isWhitespace(r):
-		l.acceptRun(whitespace)
-		l.ignore()
-		return lexFragmentName
+		return l.ignoreWhitespace(lexFragmentName)
+
+	case isComment(r):
+		return l.ignoreComment(lexFragmentName)
 
 	case isAlpha(r):
-		l.acceptFn(isAlpha)
-		l.acceptFn(isAlphaNumeric)
-		l.emit(itemName)
-		return lexOn
+		return l.scanField(lexOn)
 
 	default:
 		return l.errorf("expected right curly")
@@ -500,9 +508,10 @@ func lexOn(l *lexer) stateFn {
 	r := l.peek()
 	switch {
 	case isWhitespace(r):
-		l.acceptRun(whitespace)
-		l.ignore()
-		return lexOn
+		return l.ignoreWhitespace(lexOn)
+
+	case isComment(r):
+		return l.ignoreComment(lexOn)
 
 	case strings.HasPrefix(l.input[l.pos:], keywords[itemOn]):
 		l.acceptOrdered(keywords[itemOn])
@@ -518,40 +527,80 @@ func lexFragmentType(l *lexer) stateFn {
 	r := l.peek()
 	switch {
 	case isWhitespace(r):
-		l.acceptRun(whitespace)
-		l.ignore()
-		return lexFragmentType
+		return l.ignoreWhitespace(lexFragmentType)
+
+	case isComment(r):
+		return l.ignoreComment(lexFragmentType)
 
 	case isAlpha(r):
-		l.acceptFn(isAlpha)
-		l.acceptFn(isAlphaNumeric)
-		l.emit(itemName)
-		return lexSelection
+		return l.scanField(lexSelection)
 
 	default:
 		return l.errorf("expected fragment type to be alpha numeric")
 	}
 }
 
-func (l *lexer) scanString() bool {
-	if l.peek() != doubleQuote {
-		return false
+func (l *lexer) ignoreWhitespace(fn stateFn) stateFn {
+	l.acceptRun(whitespace)
+	l.ignore()
+	return fn
+}
+
+func (l *lexer) ignoreComment(fn stateFn) stateFn {
+	if r := l.peek(); !isComment(r) {
+		l.errorf("ignoreComment expects to start with the comment character")
+	}
+
+	l.next()
+	l.acceptFn(isNotLineTerminator)
+	l.ignore()
+	return fn
+}
+
+func (l *lexer) scanField(fn stateFn) stateFn {
+	if r := l.peek(); !isAlpha(r) {
+		return l.errorf("invalid field; fields must start with an alpha character")
+	}
+
+	l.acceptFn(isAlpha)
+	l.acceptFn(isAlphaNumeric)
+	l.emit(itemName)
+	return fn
+}
+
+func (l *lexer) scanString(fn stateFn) stateFn {
+	if r := l.peek(); r != doubleQuote {
+		return l.errorf("strings must begin with a %v", doubleQuote)
 	}
 
 	l.next()
 	l.ignore()
 
 	for {
-		l.acceptFn(func(r rune) bool {
-			return r != doubleQuote && r != escape
-		})
-
 		switch l.peek() {
+		case escape:
+			l.next()
+			if r := l.peek(); isEscapedCharacter(r) {
+				l.next()
+
+			} else if l.acceptUnicode() {
+				continue
+
+			} else {
+				return l.errorf("invalid escape sequence")
+			}
+
 		case doubleQuote:
 			l.emit(itemString)
 			l.next()
 			l.ignore()
-			return true
+			return fn
+
+		case eof:
+			return l.errorf("unmatched double quotes")
+
+		default:
+			l.next()
 		}
 	}
 }
@@ -580,15 +629,23 @@ func (l *lexer) scanNumber() bool {
 	return true
 }
 
-// isSpace reports whether r is a space character.
+func isComment(r rune) bool {
+	return r == '#'
+}
+
+// isWhitespace reports whether r is a space character.
 // space characters are: space, tab, carriage-return (\r), line feed (\n), and comma
 func isWhitespace(r rune) bool {
-	return r == ' ' || r == '\t' || r == '\n' || r == '\r' || r == ','
+	return strings.IndexRune(whitespace, r) >= 0
 }
 
 // isEndOfLine reports whether r is an end-of-line character.
-func isEndOfLine(r rune) bool {
-	return r == '\r' || r == '\n'
+func isLineTerminator(r rune) bool {
+	return strings.IndexRune(lineTerminator, r) >= 0
+}
+
+func isNotLineTerminator(r rune) bool {
+	return !isLineTerminator(r)
 }
 
 // isAlphaNumeric reports whether r is an alphabetic, digit, or underscore.
@@ -604,4 +661,9 @@ func isAlpha(r rune) bool {
 // isNumeric reports whether r is numeric
 func isNumeric(r rune) bool {
 	return strings.IndexRune(digits, r) >= 0
+}
+
+// isEscapeCharacter reports whether r is a valid escape character to follow a \
+func isEscapedCharacter(r rune) bool {
+	return strings.IndexRune(escapeCharacters, r) >= 0
 }
