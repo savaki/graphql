@@ -53,17 +53,13 @@ func New(data []byte) (Store, error) {
 	return Store{props: v}, nil
 }
 
-func (s Store) Fetch(c *graphql.Context) (graphql.Field, error) {
+func (s Store) Query(c *graphql.Context) (graphql.Field, error) {
 	v, ok := s.props[c.Name]
 	if !ok {
 		return nil, graphql.ErrFieldNotFound
 	}
 
 	return Field{data: v}, nil
-}
-
-func (s Store) Query(c *graphql.Context) (graphql.Field, error) {
-	return s.Fetch(c)
 }
 
 func (s Store) Mutate(c *graphql.Context) (graphql.Field, error) {

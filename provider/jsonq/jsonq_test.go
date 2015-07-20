@@ -19,7 +19,7 @@ func TestParse(t *testing.T) {
 		store, err := New(data)
 		So(err, ShouldBeNil)
 
-		field, err := store.Fetch(&graphql.Context{Name: "a"})
+		field, err := store.Query(&graphql.Context{Name: "a"})
 		So(err, ShouldBeNil)
 
 		selection, err := field.Selection()
