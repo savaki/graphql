@@ -9,6 +9,19 @@ GraphQL implementation in go based on the working draft.
 * The code works, but is far from production grade and does not implement the entire working draft.
 * Exploring models for an executor, expect this to change
 
+- [ ] 2.1 Comments
+- [x] 2.2 Names
+- [ ] 2.3 Document
+- [ ] 2.4 Operations
+- [x] 2.5 Fields
+- [x] 2.6 Field Selections
+- [x] 2.7 Arguments
+- [x] 2.8 Field Alias
+- [ ] 2.9 Input Values
+- [ ] 2.10 Variables
+- [ ] 2.11 Fragments
+- [ ] 2.12 Directives
+
 ## Overview
 
 This is a Go implementation of GraphQL.  The intent is to create a high quality library suitable for production deployments.
