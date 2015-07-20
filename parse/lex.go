@@ -58,6 +58,8 @@ const (
 	itemKeyword  // used only to delimit the keywords
 	itemQuery    // query keyword
 	itemMutation // mutations keyword
+	itemFragment // fragment keyword
+	itemOn       // fragment keyword
 	itemEllipses // fragment definition, '...'
 	itemTrue     // true
 	itemFalse    // false
@@ -66,9 +68,11 @@ const (
 var keywords = map[itemType]string{
 	itemQuery:    "query",
 	itemMutation: "mutation",
+	itemFragment: "fragment",
 	itemEllipses: "...",
 	itemTrue:     "true",
 	itemFalse:    "false",
+	itemOn:       "on",
 }
 
 const eof = -1
@@ -245,6 +249,9 @@ func lexRoot(l *lexer) stateFn {
 	case strings.HasPrefix(l.input[l.pos:], keywords[itemMutation]):
 		return lexMutation
 
+	case strings.HasPrefix(l.input[l.pos:], keywords[itemFragment]):
+		return lexFragment
+
 	case r == leftCurly:
 		return lexSelection
 
@@ -277,7 +284,7 @@ func lexMutation(l *lexer) stateFn {
 
 	// query must be followed by at least one whitespace
 	if r := l.peek(); !isSpace(r) {
-		return l.errorf("query keyword must be followed by a whitespace")
+		return l.errorf("mutation keyword must be followed by a whitespace")
 	}
 
 	return lexField
@@ -326,6 +333,17 @@ func lexAfterField(l *lexer) stateFn {
 		l.emit(itemColon)
 		return lexField
 
+	case strings.HasPrefix(l.input[l.pos:], keywords[itemEllipses]):
+		l.acceptOrdered(keywords[itemEllipses])
+		l.emit(itemEllipses)
+		return lexAfterField
+
+	case isAlpha(r) && l.token[0] == itemEllipses:
+		l.acceptFn(isAlpha)
+		l.acceptFn(isAlphaNumeric)
+		l.emit(itemName)
+		return lexAfterField
+
 	case isAlpha(r):
 		return lexField
 
@@ -356,7 +374,7 @@ func lexArgs(l *lexer) stateFn {
 	case r == rightParen:
 		l.next()
 		l.emit(itemRightParen)
-		return lexSelection
+		return lexAfterField
 
 	default:
 		return l.errorf("unexpected argument")
@@ -410,29 +428,10 @@ func lexSelection(l *lexer) stateFn {
 		l.depth++
 		l.next()
 		l.emit(itemLeftCurly)
-		return lexInsideSelection
+		return lexAfterField
 
 	default:
 		return l.errorf("expected begin selection")
-	}
-}
-
-func lexInsideSelection(l *lexer) stateFn {
-	r := l.peek()
-	switch {
-	case isSpace(r):
-		l.acceptRun(whitespace)
-		l.ignore()
-		return lexInsideSelection
-
-	case isAlpha(r):
-		return lexField
-
-	case r == rightCurly:
-		return lexEndSelection
-
-	default:
-		return l.errorf("expected field inside selection")
 	}
 }
 
@@ -451,11 +450,79 @@ func lexEndSelection(l *lexer) stateFn {
 		if l.depth == 0 {
 			return lexRoot
 		} else {
-			return lexInsideSelection
+			return lexAfterField
 		}
 
 	default:
 		return l.errorf("expected right curly")
+	}
+}
+
+func lexFragment(l *lexer) stateFn {
+	l.pos += Pos(len(keywords[itemFragment]))
+	l.emit(itemFragment)
+
+	// fragment must be followed by at least one whitespace
+	if r := l.peek(); !isSpace(r) {
+		return l.errorf("fragment keyword must be followed by a whitespace")
+	}
+
+	return lexFragmentName
+}
+
+func lexFragmentName(l *lexer) stateFn {
+	r := l.peek()
+	switch {
+	case isSpace(r):
+		l.acceptRun(whitespace)
+		l.ignore()
+		return lexFragmentName
+
+	case isAlpha(r):
+		l.acceptFn(isAlpha)
+		l.acceptFn(isAlphaNumeric)
+		l.emit(itemName)
+		return lexOn
+
+	default:
+		return l.errorf("expected right curly")
+	}
+}
+
+func lexOn(l *lexer) stateFn {
+	r := l.peek()
+	switch {
+	case isSpace(r):
+		l.acceptRun(whitespace)
+		l.ignore()
+		return lexOn
+
+	case strings.HasPrefix(l.input[l.pos:], keywords[itemOn]):
+		l.acceptOrdered(keywords[itemOn])
+		l.emit(itemOn)
+		return lexFragmentType
+
+	default:
+		return l.errorf("expected on keyword")
+	}
+}
+
+func lexFragmentType(l *lexer) stateFn {
+	r := l.peek()
+	switch {
+	case isSpace(r):
+		l.acceptRun(whitespace)
+		l.ignore()
+		return lexFragmentType
+
+	case isAlpha(r):
+		l.acceptFn(isAlpha)
+		l.acceptFn(isAlphaNumeric)
+		l.emit(itemName)
+		return lexSelection
+
+	default:
+		return l.errorf("expected fragment type to be alpha numeric")
 	}
 }
 

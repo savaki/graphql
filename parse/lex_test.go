@@ -197,6 +197,176 @@ func TestLexString(t *testing.T) {
 	})
 }
 
+func TestLexFragment(t *testing.T) {
+	Convey("Verify we can parse the sample fragmnt", t, func() {
+		l := lex("fragment", `
+query withFragments {
+  user(id: 4) {
+    friends(first: 10) {
+      ...friendFields
+    }
+    mutualFriends(first: 10) {
+      ...friendFields
+    }
+  }
+}
+
+fragment friendFields on User {
+  id
+  name
+  profilePic(size: 50)
+}`)
+
+		wants := []item{
+			{typ: itemQuery},
+			{typ: itemName, val: "withFragments"},
+			{typ: itemLeftCurly},
+			{typ: itemName, val: "user"},
+			{typ: itemLeftParen},
+			{typ: itemName, val: "id"},
+			{typ: itemColon},
+			{typ: itemNumber, val: "4"},
+			{typ: itemRightParen},
+			{typ: itemLeftCurly},
+
+			{typ: itemName, val: "friends"},
+			{typ: itemLeftParen},
+			{typ: itemName, val: "first"},
+			{typ: itemColon},
+			{typ: itemNumber, val: "10"},
+			{typ: itemRightParen},
+			{typ: itemLeftCurly},
+			{typ: itemEllipses},
+			{typ: itemName, val: "friendFields"},
+			{typ: itemRightCurly},
+
+			{typ: itemName, val: "mutualFriends"},
+			{typ: itemLeftParen},
+			{typ: itemName, val: "first"},
+			{typ: itemColon},
+			{typ: itemNumber, val: "10"},
+			{typ: itemRightParen},
+			{typ: itemLeftCurly},
+			{typ: itemEllipses},
+			{typ: itemName, val: "friendFields"},
+			{typ: itemRightCurly},
+
+			{typ: itemRightCurly},
+			{typ: itemRightCurly},
+
+			{typ: itemFragment},
+			{typ: itemName, val: "friendFields"},
+			{typ: itemOn},
+			{typ: itemName, val: "User"},
+			{typ: itemLeftCurly},
+			{typ: itemName, val: "id"},
+			{typ: itemName, val: "name"},
+			{typ: itemName, val: "profilePic"},
+			{typ: itemLeftParen},
+			{typ: itemName, val: "size"},
+			{typ: itemColon},
+			{typ: itemNumber, val: "50"},
+			{typ: itemRightParen},
+			{typ: itemRightCurly},
+			{typ: itemEOF},
+		}
+
+		VerifyWants(l, wants)
+	})
+}
+
+func TestLexNestedFragments(t *testing.T) {
+	Convey("Verify we can parse the sample fragmnt", t, func() {
+		l := lex("fragment", `
+query withNestedFragments {
+  user(id: 4) {
+    friends(first: 10) {
+      ...friendFields
+    }
+    mutualFriends(first: 10) {
+      ...friendFields
+    }
+  }
+}
+
+fragment friendFields on User {
+  id
+  name
+  ...standardProfilePic
+}
+
+fragment standardProfilePic on User {
+  profilePic(size: 50)
+}`)
+
+		wants := []item{
+			{typ: itemQuery},
+			{typ: itemName, val: "withNestedFragments"},
+			{typ: itemLeftCurly},
+			{typ: itemName, val: "user"},
+			{typ: itemLeftParen},
+			{typ: itemName, val: "id"},
+			{typ: itemColon},
+			{typ: itemNumber, val: "4"},
+			{typ: itemRightParen},
+			{typ: itemLeftCurly},
+
+			{typ: itemName, val: "friends"},
+			{typ: itemLeftParen},
+			{typ: itemName, val: "first"},
+			{typ: itemColon},
+			{typ: itemNumber, val: "10"},
+			{typ: itemRightParen},
+			{typ: itemLeftCurly},
+			{typ: itemEllipses},
+			{typ: itemName, val: "friendFields"},
+			{typ: itemRightCurly},
+
+			{typ: itemName, val: "mutualFriends"},
+			{typ: itemLeftParen},
+			{typ: itemName, val: "first"},
+			{typ: itemColon},
+			{typ: itemNumber, val: "10"},
+			{typ: itemRightParen},
+			{typ: itemLeftCurly},
+			{typ: itemEllipses},
+			{typ: itemName, val: "friendFields"},
+			{typ: itemRightCurly},
+
+			{typ: itemRightCurly},
+			{typ: itemRightCurly},
+
+			{typ: itemFragment},
+			{typ: itemName, val: "friendFields"},
+			{typ: itemOn},
+			{typ: itemName, val: "User"},
+			{typ: itemLeftCurly},
+			{typ: itemName, val: "id"},
+			{typ: itemName, val: "name"},
+			{typ: itemEllipses},
+			{typ: itemName, val: "standardProfilePic"},
+			{typ: itemRightCurly},
+
+			{typ: itemFragment},
+			{typ: itemName, val: "standardProfilePic"},
+			{typ: itemOn},
+			{typ: itemName, val: "User"},
+			{typ: itemLeftCurly},
+			{typ: itemName, val: "profilePic"},
+			{typ: itemLeftParen},
+			{typ: itemName, val: "size"},
+			{typ: itemColon},
+			{typ: itemNumber, val: "50"},
+			{typ: itemRightParen},
+			{typ: itemRightCurly},
+
+			{typ: itemEOF},
+		}
+
+		VerifyWants(l, wants)
+	})
+}
+
 // @see https://news.ycombinator.com/item?id=8978936
 /*
 func TestLexHackerNews(t *testing.T) {
