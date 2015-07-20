@@ -35,7 +35,7 @@ func TestLexComplex1(t *testing.T) {
 	Convey("Verify #lex on complex grammar", t, func() {
 		l := lex("complex",
 			`query user(id:123) {
-				close_friends: friends(max: 5, distance: 1) {
+				close_friends: friends(max: 5, distance: 1.2) {
 					picture
 				}
 			}`)
@@ -58,7 +58,7 @@ func TestLexComplex1(t *testing.T) {
 			{typ: itemInt, val: "5"},
 			{typ: itemName, val: "distance"},
 			{typ: itemColon},
-			{typ: itemInt, val: "1"},
+			{typ: itemFloat, val: "1.2"},
 			{typ: itemRightParen},
 			{typ: itemLeftCurly},
 			{typ: itemName, val: "picture"},
@@ -368,46 +368,91 @@ fragment standardProfilePic on User {
 }
 
 // @see https://news.ycombinator.com/item?id=8978936
-/*
 func TestLexHackerNews(t *testing.T) {
 	Convey("Verify #lex on hn grammar", t, func() {
-		l := lex("simple", `viewer() {
-    posts {
-      node {
-        author { id, name, favorite_color },
-        // any other post data you want
-      }
-    },
-    friends {
-      node {
-        id,
-        name,
-        favorite_color,
-      }
-    },
-    notifications {
-      node {
-        source { id, name, favorite_color },
-        // any other notification fields you want
-      }
-    },
-  }`)
+		l := lex("simple", `
+query viewer() {
+	posts {
+		node {
+			author { id, name, favorite_color },
+			# any other post data you want
+		}
+	},
+	friends {
+		node {
+			id,
+			name,
+			favorite_color,
+		}
+	},
+	notifications {
+		node {
+			source { id, name, favorite_color },
+			# any other notification fields you want
+		}
+	},
+}`)
 
 		wants := []item{
+			{typ: itemQuery},
+			{typ: itemName, val:"viewer"},
+			{typ: itemLeftParen},
+			{typ: itemRightParen},
+			{typ: itemLeftCurly},
+
+			// posts
+			{typ: itemName, val:"posts"},
+			{typ: itemLeftCurly},
+			{typ: itemName, val:"node"},
+			{typ: itemLeftCurly},
+			{typ: itemName, val:"author"},
+			{typ: itemLeftCurly},
+			{typ: itemName, val:"id"},
+			{typ: itemName, val:"name"},
+			{typ: itemName, val:"favorite_color"},
+			{typ: itemRightCurly},
+			{typ: itemRightCurly},
+			{typ: itemRightCurly},
+
+			// friends
+			{typ: itemName, val:"friends"},
+			{typ: itemLeftCurly},
+			{typ: itemName, val:"node"},
+			{typ: itemLeftCurly},
+			{typ: itemName, val:"id"},
+			{typ: itemName, val:"name"},
+			{typ: itemName, val:"favorite_color"},
+			{typ: itemRightCurly},
+			{typ: itemRightCurly},
+
+			// notifications
+			{typ: itemName, val:"notifications"},
+			{typ: itemLeftCurly},
+			{typ: itemName, val:"node"},
+			{typ: itemLeftCurly},
+			{typ: itemName, val:"source"},
+			{typ: itemLeftCurly},
+			{typ: itemName, val:"id"},
+			{typ: itemName, val:"name"},
+			{typ: itemName, val:"favorite_color"},
+			{typ: itemRightCurly},
+			{typ: itemRightCurly},
+			{typ: itemRightCurly},
+
+			{typ: itemRightCurly},
 			{typ: itemEOF},
 		}
 
 		VerifyWants(l, wants)
 	})
 }
-*/
 
 func VerifyWants(l *lexer, wants []item) {
 	for _, want := range wants {
-		item := l.nextItem()
-		So(item.typ, ShouldEqual, want.typ)
+		actual := l.nextItem()
+		So(actual.typ, ShouldEqual, want.typ)
 		if want.val != "" {
-			So(item.val, ShouldEqual, want.val)
+			So(actual.val, ShouldEqual, want.val)
 		}
 	}
 }
