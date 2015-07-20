@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/savaki/gographql"
+	"github.com/savaki/graphql"
 	. "github.com/smartystreets/goconvey/convey"
 	"bitbucket.org/dataskoop/x/log"
 )

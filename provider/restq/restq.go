@@ -2,11 +2,10 @@ package restq
 
 import (
 	"net/http"
-
 	"io/ioutil"
 
 	"github.com/docker/machine/drivers/vmwarevsphere/errors"
-	"github.com/savaki/gographql"
+	"github.com/savaki/graphql"
 )
 
 type Store struct {

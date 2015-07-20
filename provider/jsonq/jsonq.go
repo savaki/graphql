@@ -3,7 +3,7 @@ package jsonq
 import (
 	"encoding/json"
 
-	"github.com/savaki/gographql"
+	"github.com/savaki/graphql"
 )
 
 // --[ Field ]------------------------------------------------------------

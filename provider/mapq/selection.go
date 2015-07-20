@@ -1,6 +1,6 @@
 package mapops
 
-import "github.com/savaki/gographql"
+import "github.com/savaki/graphql"
 
 type selection struct {
 	data map[string]interface{}

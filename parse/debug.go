@@ -1,11 +1,11 @@
 package parse
 
 import (
+	"encoding/json"
 	"log"
 	"os"
 	"strconv"
 	"strings"
-	"encoding/json"
 )
 
 var (
@@ -42,7 +42,7 @@ func (iter *iterator) dumpTokens() {
 	}
 }
 
-func (iter*iterator) dumpOperations() {
+func (iter *iterator) dumpOperations() {
 	log.Println("------------------------------------")
 	data, _ := json.MarshalIndent(iter.operations, "", "..")
 	log.Println(string(data))

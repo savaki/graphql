@@ -2,10 +2,10 @@ package gographql
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 
-	"github.com/docker/machine/drivers/vmwarevsphere/errors"
-	"github.com/savaki/gographql/parse"
+	"github.com/savaki/graphql/parse"
 )
 
 var (

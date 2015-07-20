@@ -1,6 +1,6 @@
 # gographql
 
-[![GoDoc](https://godoc.org/github.com/savaki/gographql?status.svg)](https://godoc.org/github.com/savaki/gographql)
+[![GoDoc](https://godoc.org/github.com/savaki/graphql?status.svg)](https://godoc.org/github.com/savaki/graphql)
 
 GraphQL packages for golang.
 

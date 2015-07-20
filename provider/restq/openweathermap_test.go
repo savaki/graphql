@@ -5,7 +5,7 @@ import (
 
 	"bytes"
 
-	"github.com/savaki/gographql"
+	"github.com/savaki/graphql"
 	. "github.com/smartystreets/goconvey/convey"
 )
 
