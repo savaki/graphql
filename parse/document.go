@@ -59,12 +59,6 @@ func (f *Field) addSelection() *Selection {
 	return f.Selection
 }
 
-func (f *Field) addFilter(name string) *Filter {
-	op := &Filter{Name: name}
-	f.Operations = append(f.Operations, op)
-	return op
-}
-
 func newField(alias, name string) *Field {
 	return &Field{
 		Alias: alias,

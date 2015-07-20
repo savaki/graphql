@@ -108,20 +108,9 @@ func (iter *iterator) addFieldArg(name, value string) {
 	}
 }
 
-func (iter *iterator) addFilterArg(name, value string) {
-	if iter.filter != nil {
-		iter.filter.addArg(name, value)
-	}
-}
-
 func (iter *iterator) addSelection() *Selection {
 	iter.selection = iter.field.addSelection()
 	return iter.selection
-}
-
-func (iter *iterator) addFilter(name string) *Filter {
-	iter.filter = iter.field.addFilter(name)
-	return iter.filter
 }
 
 func (iter *iterator) pushSelector(s *Selection) {

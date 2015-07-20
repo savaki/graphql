@@ -110,10 +110,6 @@ func parseField(iter *iterator) parseFn {
 		iter.pushSelector(s)
 		return parseSelector
 
-	case item.typ == itemDot && iter.peek1().typ == itemName:
-		iter.next() // dot
-		return parseOperation
-
 	case item.typ == itemRightCurly:
 		iter.next()
 		iter.popSelector()
@@ -136,47 +132,6 @@ func parseField(iter *iterator) parseFn {
 		iter.dumpTokens()
 		return iter.errorf("unexpected element after name => %s", item.typ)
 	}
-}
-
-func parseOperation(iter *iterator) parseFn {
-	item := iter.peek()
-	switch {
-	case item.typ == itemName && iter.peek1().typ == itemLeftParen:
-		iter.next() // name
-		iter.next() // left paren
-		iter.addFilter(item.val)
-		return parseOperationArg
-
-	default:
-		return iter.errorf("unexpected operation after dot => %s", item.typ)
-	}
-	return nil
-}
-
-func parseOperationArg(iter *iterator) parseFn {
-	item := iter.peek()
-	switch {
-	case item.typ == itemName && iter.peek1().typ == itemColon && isValue(iter.peek2()):
-		name := iter.next()  // name
-		iter.next()          // colon
-		value := iter.next() // value
-
-		iter.addFilterArg(name.val, value.val)
-		return parseOperationArg
-
-	case item.typ == itemRightParen:
-		iter.next()
-		return parseField
-
-	case item.typ == itemNumber:
-		iter.next()
-		iter.addFilterArg("", item.val)
-		return parseOperationArg
-
-	default:
-		return iter.errorf("unexpected operation argument element => %s", item.typ)
-	}
-
 }
 
 func parseFieldArg(iter *iterator) parseFn {
