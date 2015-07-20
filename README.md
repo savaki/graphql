@@ -21,6 +21,12 @@ an executor, expect this to change
 - [ ] 2.10 Variables
 - [ ] 2.11 Fragments
 - [ ] 2.12 Directives
+- [ ] 3. Type System
+- [ ] 4. Introspection
+- [ ] 5. Validation
+- [ ] 6. Execution
+- [ ] 7. Response
+- [ ] 8. Grammar
 
 ## Overview
 
