@@ -3,6 +3,7 @@ package jsonq
 import (
 	"testing"
 
+	"github.com/savaki/graphql"
 	. "github.com/smartystreets/goconvey/convey"
 )
 
@@ -18,14 +19,14 @@ func TestParse(t *testing.T) {
 		store, err := New(data)
 		So(err, ShouldBeNil)
 
-		field, err := store.Fetch("a")
+		field, err := store.Fetch(&graphql.Context{Name: "a"})
 		So(err, ShouldBeNil)
 
 		selection, err := field.Selection()
 		So(err, ShouldBeNil)
 
 		{
-			f, err := selection.Fetch("name")
+			f, err := selection.Fetch(&graphql.Context{Name: "name"})
 			So(err, ShouldBeNil)
 
 			v, err := f.Value()
@@ -34,7 +35,7 @@ func TestParse(t *testing.T) {
 		}
 
 		{
-			f, err := selection.Fetch("age")
+			f, err := selection.Fetch(&graphql.Context{Name: "age"})
 			So(err, ShouldBeNil)
 
 			v, err := f.Value()

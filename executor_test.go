@@ -1,4 +1,4 @@
-package gographql
+package graphql
 
 import "testing"
 

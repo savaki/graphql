@@ -1,9 +1,9 @@
 package restq
 
 import (
-	"testing"
-
 	"bytes"
+	"encoding/json"
+	"testing"
 
 	"github.com/savaki/graphql"
 	. "github.com/smartystreets/goconvey/convey"
@@ -12,28 +12,32 @@ import (
 func TestOpenWeatherMap(t *testing.T) {
 	Convey("Given the rest graphql handler", t, func() {
 		type Result struct {
-			Name    string
-			Weather struct {
-				Temp string
+			City struct {
+				Name    string
+				Weather struct {
+					Temperature float32
+				}
 			}
 		}
 
 		query := `query city: GET("http://api.openweathermap.org/data/2.5/weather?lat=35&lon=139") {
 			name
 			weather: main {
-				temp: temperature
+				temperature: temp
 			}
-		}
-		`
+		}`
 
 		buf := bytes.NewBuffer([]byte{})
 		store := New()
-		executor := gographql.New(store)
+		executor := graphql.New(store)
 		err := executor.Handle(query, buf)
-		So(err, ShouldNotBeNil)
+		So(err, ShouldBeNil)
 
-		//		result := Result{}
-		//		err = json.Unmarshal(buf.Bytes(), &result)
-		//		So(err, ShouldBeNil)
+		result := Result{}
+		err = json.Unmarshal(buf.Bytes(), &result)
+		So(err, ShouldBeNil)
+
+		So(result.City.Name, ShouldEqual, "Shuzenji")
+		So(result.City.Weather.Temperature, ShouldBeGreaterThan, 0.0)
 	})
 }

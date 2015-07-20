@@ -29,12 +29,20 @@ type Field struct {
 	Alias      string    `json:"alias,omitempty"`
 	Name       string    `json:"name"`
 	Args       []*Arg    `json:"args,omitempty"`
-	Selector   *Selector `json:"selector,omitempty"`
+	Selection  *Selector `json:"selector,omitempty"`
 	Operations []*Filter `json:"operations,omitempty"`
 }
 
-func (f*Field) IsScalar() bool {
-	return f.Selector == nil || len(f.Selector.Fields) == 0
+func (f *Field) Key() string {
+	if f.Alias == "" {
+		return f.Name
+	} else {
+		return f.Alias
+	}
+}
+
+func (f *Field) IsScalar() bool {
+	return f.Selection == nil || len(f.Selection.Fields) == 0
 }
 
 func (f *Field) addArg(name, value string) *Arg {
@@ -47,8 +55,8 @@ func (f *Field) addArg(name, value string) *Arg {
 }
 
 func (f *Field) addSelector() *Selector {
-	f.Selector = &Selector{}
-	return f.Selector
+	f.Selection = &Selector{}
+	return f.Selection
 }
 
 func (f *Field) addFilter(name string) *Filter {

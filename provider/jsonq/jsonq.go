@@ -12,16 +12,16 @@ type Field struct {
 	data json.RawMessage
 }
 
-func (f Field) Apply(name string, args ...gographql.Arg) (gographql.Field, error) {
-	return nil, gographql.ErrNotImplemented
+func (f Field) Apply(name string, args ...graphql.Arg) (graphql.Field, error) {
+	return nil, graphql.ErrNotImplemented
 }
 
-func (f Field) Selection() (gographql.Selection, error) {
+func (f Field) Selection() (graphql.Selection, error) {
 	s, err := New(f.data)
 	return s, err
 }
 
-func (f Field) Value() (gographql.Value, error) {
+func (f Field) Value() (graphql.Value, error) {
 	switch f.data[0] {
 	case '"':
 		var s string
@@ -29,15 +29,16 @@ func (f Field) Value() (gographql.Value, error) {
 		return s, err
 
 	case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-		var i int
+		var i float32
 		err := json.Unmarshal(f.data, &i)
 		return i, err
 
 	case '{', '[':
-		return nil, gographql.ErrNotAScalar
-	}
+		return nil, graphql.ErrNotAScalar
 
-	return nil, nil
+	default:
+		return nil, graphql.ErrNotAScalar
+	}
 }
 
 // --[ Store ]------------------------------------------------------------
@@ -56,19 +57,19 @@ func New(data []byte) (Store, error) {
 	return Store{props: v}, nil
 }
 
-func (s Store) Fetch(name string, args ...gographql.Arg) (gographql.Field, error) {
-	v, ok := s.props[name]
+func (s Store) Fetch(c *graphql.Context) (graphql.Field, error) {
+	v, ok := s.props[c.Name]
 	if !ok {
-		return nil, gographql.ErrFieldNotFound
+		return nil, graphql.ErrFieldNotFound
 	}
 
 	return Field{data: v}, nil
 }
 
-func (s Store) Query(name string, args ...gographql.Arg) (gographql.Field, error) {
-	return s.Fetch(name)
+func (s Store) Query(c *graphql.Context) (graphql.Field, error) {
+	return s.Fetch(c)
 }
 
-func (s Store) Mutate(name string, args ...gographql.Arg) (gographql.Field, error) {
-	return nil, gographql.ErrNotImplemented
+func (s Store) Mutate(c *graphql.Context) (graphql.Field, error) {
+	return nil, graphql.ErrNotImplemented
 }

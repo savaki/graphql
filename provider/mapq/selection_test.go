@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"testing"
 
+	"bitbucket.org/dataskoop/x/log"
 	"github.com/savaki/graphql"
 	. "github.com/smartystreets/goconvey/convey"
-	"bitbucket.org/dataskoop/x/log"
 )
 
 func TestStore(t *testing.T) {
@@ -27,7 +27,7 @@ func TestStore(t *testing.T) {
 
 		buf := bytes.NewBuffer([]byte{})
 		query := `query bill { friends }`
-		err := gographql.New(store).Handle(query, buf)
+		err := graphql.New(store).Handle(query, buf)
 
 		v := map[string]map[string][]string{}
 		err = json.Unmarshal(buf.Bytes(), &v)
@@ -59,8 +59,8 @@ func BenchmarkStore(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		buf.Reset()
 		query := `query bill { friends }`
-		err := gographql.New(store).Handle(query, buf)
-		if err !=nil {
+		err := graphql.New(store).Handle(query, buf)
+		if err != nil {
 			log.Fatalln(err)
 		}
 	}

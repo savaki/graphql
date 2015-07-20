@@ -1,6 +1,6 @@
-package gographql
+package graphql
 
-import "github.com/docker/machine/drivers/vmwarevsphere/errors"
+import "errors"
 
 var (
 	ErrFieldNotFound  = errors.New("field not found")
@@ -8,25 +8,53 @@ var (
 	ErrNotAScalar     = errors.New("invalid attempt to treat non-scalar as scalar")
 )
 
+// --[ Value ]--------------------------------------------------------
+
 type Value interface {
 }
+
+// --[ Arg ]----------------------------------------------------------
 
 type Arg struct {
 	Name  string
 	Value Value
 }
 
+// --[ Filter ]-------------------------------------------------------
+
+type Filter struct {
+	name string
+	args []Arg
+}
+
+func (f *Filter) Name() string {
+	return f.name
+}
+
+func (f *Filter) Args() []Arg {
+	return f.args
+}
+
+// --[ Context ]------------------------------------------------------
+
+type Context struct {
+	Name    string
+	Args    []Arg
+	Filters []Filter
+}
+
+// --[ Selection ]----------------------------------------------------
+
 type Selection interface {
-	Fetch(string, ...Arg) (Field, error)
+	Fetch(c *Context) (Field, error)
 }
 
 type Field interface {
 	Selection() (Selection, error)
-	Apply(string, ...Arg) (Field, error)
 	Value() (Value, error)
 }
 
 type Store interface {
-	Query(string, ...Arg) (Field, error)
-	Mutate(string, ...Arg) (Field, error)
+	Query(*Context) (Selection, error)
+	Mutate(*Context) (Selection, error)
 }
