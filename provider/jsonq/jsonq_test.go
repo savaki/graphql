@@ -26,7 +26,7 @@ func TestParse(t *testing.T) {
 		So(err, ShouldBeNil)
 
 		{
-			f, err := selection.Fetch(&graphql.Context{Name: "name"})
+			f, err := selection.Query(&graphql.Context{Name: "name"})
 			So(err, ShouldBeNil)
 
 			v, err := f.Value()
@@ -35,7 +35,7 @@ func TestParse(t *testing.T) {
 		}
 
 		{
-			f, err := selection.Fetch(&graphql.Context{Name: "age"})
+			f, err := selection.Query(&graphql.Context{Name: "age"})
 			So(err, ShouldBeNil)
 
 			v, err := f.Value()

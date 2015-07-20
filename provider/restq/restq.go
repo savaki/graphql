@@ -3,8 +3,8 @@ package restq
 import (
 	"io/ioutil"
 	"net/http"
+	"errors"
 
-	"github.com/docker/machine/drivers/vmwarevsphere/errors"
 	"github.com/savaki/graphql"
 	"github.com/savaki/graphql/provider/jsonq"
 )
@@ -19,20 +19,18 @@ func New() *Store {
 	}
 }
 
-func WithClient(store *Store, client *http.Client) *Store {
-	return &Store{
-		Client: client,
-	}
-}
-
-func (s *Store) Mutate(c *graphql.Context) (graphql.Selection, error) {
+func (s *Store) Mutate(c *graphql.Context) (graphql.Field, error) {
 	return nil, errors.New("#Mutate is not yet implemented")
 }
 
-func (s *Store) Query(c *graphql.Context) (graphql.Selection, error) {
+func (s *Store) Query(c *graphql.Context) (graphql.Field, error) {
 	switch c.Name {
 	case "GET", "get":
-		return s.get(c.Args[0].Value.(string))
+		selection, err := s.get(c.Args[0].Value.(string))
+		if err != nil {
+			return nil, err
+		}
+		return field{selection: selection}, nil
 
 	default:
 		return nil, errors.New("Query only supports the GET method")

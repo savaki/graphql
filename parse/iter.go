@@ -10,8 +10,8 @@ type iterator struct {
 	err        error
 	operations []*Operation
 	operation  *Operation
-	selectors  []*Selector
-	selector   *Selector
+	selectors  []*Selection
+	selection  *Selection
 	field      *Field
 	filter     *Filter
 
@@ -23,9 +23,9 @@ type iterator struct {
 func newIterator(l *lexer) *iterator {
 	iter := &iterator{
 		l:         l,
-		selectors: []*Selector{},
+		selectors: []*Selection{},
 	}
-	iter.pushSelector(&Selector{})
+	iter.pushSelector(&Selection{})
 
 	for i := 0; i < len(iter.tokens); i++ {
 		item := l.nextItem()
@@ -95,11 +95,11 @@ func (iter *iterator) addQuery(alias, name string) *Operation {
 }
 
 func (iter *iterator) addAlias(alias, name string) {
-	iter.field = iter.selector.addAlias(alias, name)
+	iter.field = iter.selection.addAlias(alias, name)
 }
 
 func (iter *iterator) addField(name string) {
-	iter.field = iter.selector.addField(name)
+	iter.field = iter.selection.addField(name)
 }
 
 func (iter *iterator) addFieldArg(name, value string) {
@@ -114,12 +114,9 @@ func (iter *iterator) addFilterArg(name, value string) {
 	}
 }
 
-func (iter *iterator) addSelector() *Selector {
-	if iter.field != nil {
-		return iter.field.addSelector()
-	} else {
-		return &Selector{}
-	}
+func (iter *iterator) addSelection() *Selection {
+	iter.selection = iter.field.addSelection()
+	return iter.selection
 }
 
 func (iter *iterator) addFilter(name string) *Filter {
@@ -127,18 +124,18 @@ func (iter *iterator) addFilter(name string) *Filter {
 	return iter.filter
 }
 
-func (iter *iterator) pushSelector(s *Selector) {
+func (iter *iterator) pushSelector(s *Selection) {
 	iter.selectors = append(iter.selectors, s)
-	iter.selector = s
+	iter.selection = s
 	iter.field = nil
 }
 
-func (iter *iterator) popSelector() *Selector {
+func (iter *iterator) popSelector() *Selection {
 	length := len(iter.selectors)
 	s := iter.selectors[length-1]
 	iter.selectors = iter.selectors[0 : length-1]
 
-	iter.selector = s
+	iter.selection = s
 	iter.field = nil
 
 	return s

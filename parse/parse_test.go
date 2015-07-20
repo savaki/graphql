@@ -37,3 +37,12 @@ func TestParseString(t *testing.T) {
 		So(doc, ShouldNotBeNil)
 	})
 }
+
+func TestParseHello(t *testing.T) {
+	Convey("Verify #parse on hello world", t, func() {
+		q := `{hello}`
+		doc, err := Parse(q)
+		So(err, ShouldBeNil)
+		So(doc, ShouldNotBeNil)
+	})
+}

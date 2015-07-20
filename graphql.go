@@ -46,8 +46,12 @@ type Context struct {
 
 // --[ Selection ]----------------------------------------------------
 
+type Query interface {
+	Query(*Context) (Field, error)
+}
+
 type Selection interface {
-	Fetch(c *Context) (Field, error)
+	Query
 }
 
 type Field interface {
@@ -56,6 +60,6 @@ type Field interface {
 }
 
 type Store interface {
-	Query(*Context) (Selection, error)
-	Mutate(*Context) (Selection, error)
+	Query
+	Mutate(*Context) (Field, error)
 }

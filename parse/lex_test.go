@@ -18,6 +18,19 @@ func BenchmarkSimple(b *testing.B) {
 	}
 }
 
+func TestLexHello(t *testing.T) {
+	Convey("Verify #lex on hello world", t, func() {
+		l := lex("hello world", `{hello}`)
+		wants := []item{
+			{typ: itemLeftCurly},
+			{typ: itemName, val: "hello"},
+			{typ: itemRightCurly},
+			{typ: itemEOF},
+		}
+		VerifyWants(l, wants)
+	})
+}
+
 func TestLexComplex1(t *testing.T) {
 	Convey("Verify #lex on complex grammar", t, func() {
 		l := lex("complex",
@@ -165,17 +178,17 @@ func TestLexString(t *testing.T) {
 			{typ: itemColon},
 			{typ: itemName, val: "GET"},
 			{typ: itemLeftParen},
-			{typ: itemString, val:"http://api.openweathermap.org/data/2.5/weather?lat=35&lon=139"},
+			{typ: itemString, val: "http://api.openweathermap.org/data/2.5/weather?lat=35&lon=139"},
 			{typ: itemRightParen},
 			{typ: itemLeftCurly},
-			{typ: itemName, val:"name"},
-			{typ: itemName, val:"weather"},
+			{typ: itemName, val: "name"},
+			{typ: itemName, val: "weather"},
 			{typ: itemColon},
-			{typ: itemName, val:"main"},
+			{typ: itemName, val: "main"},
 			{typ: itemLeftCurly},
-			{typ: itemName, val:"temp"},
+			{typ: itemName, val: "temp"},
 			{typ: itemColon},
-			{typ: itemName, val:"temperature"},
+			{typ: itemName, val: "temperature"},
 			{typ: itemRightCurly},
 			{typ: itemRightCurly},
 		}

@@ -54,7 +54,7 @@ const (
 	itemComma      // the comma separating elements
 	itemString
 
-// ONLY KEYWORDS BELOW THIS POINT
+	// ONLY KEYWORDS BELOW THIS POINT
 	itemKeyword // used only to delimit the keywords
 	itemDot     // the cursor, spelled '.'
 	itemNil     // the untyped nil constant, easiest to treat as a keyword
@@ -205,22 +205,22 @@ func (l *lexer) run() {
 
 // state functions
 const (
-	dot = '.'
-	colon = ':'
-	plus = '+'
-	minus = '-'
+	dot         = '.'
+	colon       = ':'
+	plus        = '+'
+	minus       = '-'
 	doubleQuote = '"'
-	escape = '\\'
-	comma = ','
-	leftParen = '('
-	rightParen = ')'
-	leftCurly = '{'
-	rightCurly = '}'
+	escape      = '\\'
+	comma       = ','
+	leftParen   = '('
+	rightParen  = ')'
+	leftCurly   = '{'
+	rightCurly  = '}'
 )
 
 const (
 	whitespace = ", \t\n\r"
-	digits = "0123456789"
+	digits     = "0123456789"
 )
 
 func lexRoot(l *lexer) stateFn {
@@ -233,6 +233,12 @@ func lexRoot(l *lexer) stateFn {
 
 	case strings.HasPrefix(l.input[l.pos:], keywords[itemQuery]):
 		return lexQuery
+
+	case r == leftCurly:
+		l.depth++
+		l.next()
+		l.emit(itemLeftCurly)
+		return lexField
 
 	case r == eof:
 		l.emit(itemEOF)

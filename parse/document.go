@@ -10,7 +10,7 @@ type Arg struct {
 // --[ Filter ]-------------------------------------------------------
 
 type Filter struct {
-	Name string `json:"name,omitempy"`
+	Name string `json:"name,omitempty"`
 	Args []*Arg `json:"args,omitempty"`
 }
 
@@ -26,11 +26,11 @@ func (op *Filter) addArg(name, value string) *Arg {
 // --[ Field ]--------------------------------------------------------
 
 type Field struct {
-	Alias      string    `json:"alias,omitempty"`
-	Name       string    `json:"name"`
-	Args       []*Arg    `json:"args,omitempty"`
-	Selection  *Selector `json:"selector,omitempty"`
-	Operations []*Filter `json:"operations,omitempty"`
+	Alias      string     `json:"alias,omitempty"`
+	Name       string     `json:"name,omitempty"`
+	Args       []*Arg     `json:"args,omitempty"`
+	Selection  *Selection `json:"selector,omitempty"`
+	Operations []*Filter  `json:"operations,omitempty"`
 }
 
 func (f *Field) Key() string {
@@ -54,8 +54,8 @@ func (f *Field) addArg(name, value string) *Arg {
 	return arg
 }
 
-func (f *Field) addSelector() *Selector {
-	f.Selection = &Selector{}
+func (f *Field) addSelection() *Selection {
+	f.Selection = &Selection{}
 	return f.Selection
 }
 
@@ -74,11 +74,11 @@ func newField(alias, name string) *Field {
 
 // --[ Selector ]-----------------------------------------------------
 
-type Selector struct {
+type Selection struct {
 	Fields []*Field `json:"fields,omitempty"`
 }
 
-func (s *Selector) addAlias(alias, name string) *Field {
+func (s *Selection) addAlias(alias, name string) *Field {
 	field := &Field{
 		Alias: alias,
 		Name:  name,
@@ -87,7 +87,7 @@ func (s *Selector) addAlias(alias, name string) *Field {
 	return field
 }
 
-func (s *Selector) addField(name string) *Field {
+func (s *Selection) addField(name string) *Field {
 	return s.addAlias("", name)
 }
 
@@ -105,7 +105,7 @@ const (
 
 type Operation struct {
 	Type  OperationType `json:"type"`
-	Field *Field        `json:"field"`
+	Field *Field        `json:"field,omitempty"`
 }
 
 func newOperation(opType OperationType, alias, name string) *Operation {
@@ -121,12 +121,16 @@ type Document struct {
 	Operations []*Operation `json:"operations"`
 }
 
-func (n *Document) addOperation(opType OperationType, name string) *Operation {
+func (d *Document) HasDefaultQueryOnly() bool {
+	return len(d.Operations) == 1 && d.Operations[0].Field.Name == ""
+}
+
+func (d *Document) addOperation(opType OperationType, name string) *Operation {
 	op := &Operation{
 		Type:  opType,
 		Field: newField("", name),
 	}
-	n.Operations = append(n.Operations, op)
+	d.Operations = append(d.Operations, op)
 	return op
 }
 

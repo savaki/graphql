@@ -2,7 +2,6 @@ package graphql
 
 import (
 	"encoding/json"
-	"errors"
 	"io"
 
 	"github.com/savaki/graphql/parse"
@@ -28,7 +27,9 @@ func (e Executor) Handle(query string, w io.Writer) error {
 }
 
 func writeDocument(w io.Writer, store Store, doc *parse.Document) error {
-	io.WriteString(w, "{")
+	if !doc.HasDefaultQueryOnly() {
+		io.WriteString(w, "{")
+	}
 	for index, ops := range doc.Operations {
 		err := writeOperation(w, store, ops)
 		if err != nil {
@@ -38,12 +39,18 @@ func writeDocument(w io.Writer, store Store, doc *parse.Document) error {
 			io.WriteString(w, ",")
 		}
 	}
-	io.WriteString(w, "}")
+	if !doc.HasDefaultQueryOnly() {
+		io.WriteString(w, "}")
+	}
 
 	return nil
 }
 
 func writeOperation(w io.Writer, store Store, qOp *parse.Operation) error {
+	if qOp.Field.Name == "" {
+		return writeSelection(w, store, qOp.Field.Selection)
+	}
+
 	io.WriteString(w, `"`)
 	if qOp.Field.Alias == "" {
 		io.WriteString(w, qOp.Field.Name)
@@ -60,7 +67,12 @@ func writeOperation(w io.Writer, store Store, qOp *parse.Operation) error {
 		}
 	}
 	ctx := &Context{Name: qOp.Field.Name, Args: args}
-	selection, err := store.Query(ctx)
+	field, err := store.Query(ctx)
+	if err != nil {
+		return ErrUnknownQuery
+	}
+
+	selection, err := field.Selection()
 	if err != nil {
 		return ErrUnknownQuery
 	}
@@ -68,11 +80,11 @@ func writeOperation(w io.Writer, store Store, qOp *parse.Operation) error {
 	return writeSelection(w, selection, qOp.Field.Selection)
 }
 
-func writeSelection(w io.Writer, selection Selection, qSelector *parse.Selector) error {
+func writeSelection(w io.Writer, selection Selection, qSelector *parse.Selection) error {
 	io.WriteString(w, "{")
 	for index, qField := range qSelector.Fields {
 		ctx := &Context{Name: qField.Name}
-		field, err := selection.Fetch(ctx)
+		field, err := selection.Query(ctx)
 		if err != nil {
 			return err
 		}

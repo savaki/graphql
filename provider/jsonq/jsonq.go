@@ -12,10 +12,6 @@ type Field struct {
 	data json.RawMessage
 }
 
-func (f Field) Apply(name string, args ...graphql.Arg) (graphql.Field, error) {
-	return nil, graphql.ErrNotImplemented
-}
-
 func (f Field) Selection() (graphql.Selection, error) {
 	s, err := New(f.data)
 	return s, err

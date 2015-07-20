@@ -1,4 +1,4 @@
-package mapops
+package mapq
 
 import "github.com/savaki/graphql"
 

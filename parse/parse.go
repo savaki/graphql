@@ -22,6 +22,12 @@ func parse(iter *iterator) {
 func parseRoot(iter *iterator) parseFn {
 	item := iter.peek()
 	switch {
+	case item.typ == itemLeftCurly:
+		iter.next()
+		iter.addQuery("", "")
+		iter.addSelection()
+		return parseSelector
+
 	case item.typ == itemQuery:
 		iter.next()
 		return parseQuery
@@ -100,7 +106,7 @@ func parseField(iter *iterator) parseFn {
 
 	case item.typ == itemLeftCurly:
 		iter.next()
-		s := iter.addSelector()
+		s := iter.addSelection()
 		iter.pushSelector(s)
 		return parseSelector
 
