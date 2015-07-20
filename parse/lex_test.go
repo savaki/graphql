@@ -72,11 +72,12 @@ func TestLexComplex1(t *testing.T) {
 
 func TestLexSimple(t *testing.T) {
 	Convey("Verify #lex on simple grammar", t, func() {
-		l := lex("simple", `query sample {
-			user(id: 4) {
-				firstName
-			}
-		}`)
+		l := lex("simple", `
+			query sample {
+				user(id: 4) {
+					firstName
+				}
+			}`)
 
 		wants := []item{
 			{typ: itemQuery},
@@ -101,11 +102,12 @@ func TestLexSimple(t *testing.T) {
 
 func TestLexAlias(t *testing.T) {
 	Convey("Verify #lex on simple grammar", t, func() {
-		l := lex("simple", `query sample {
-			me:user(id: 4) {
-				first : firstName
-			}
-		}`)
+		l := lex("simple", `
+			query sample {
+				me:user(id: 4) {
+					first : firstName
+				}
+			}`)
 
 		wants := []item{
 			{typ: itemQuery},
@@ -162,13 +164,13 @@ func TestLexSimple2(t *testing.T) {
 
 func TestLexString(t *testing.T) {
 	Convey("Verify #lex on empty grammar", t, func() {
-		l := lex("simple", `query city: GET(url: "http://api.openweathermap.org/data/2.5/weather?lat=35&lon=139") {
-			name
-			weather: main {
-				temp: temperature
-			}
-		}
-		`)
+		l := lex("simple", `
+query city: GET(url: "http://api.openweathermap.org/data/2.5/weather?lat=35&lon=139") {
+	name
+	weather: main {
+		temp: temperature
+	}
+}`)
 
 		wants := []item{
 			{typ: itemQuery},
@@ -200,22 +202,22 @@ func TestLexString(t *testing.T) {
 func TestLexFragment(t *testing.T) {
 	Convey("Verify we can parse the sample fragmnt", t, func() {
 		l := lex("fragment", `
-query withFragments {
-  user(id: 4) {
-    friends(first: 10) {
-      ...friendFields
-    }
-    mutualFriends(first: 10) {
-      ...friendFields
-    }
-  }
-}
+			query withFragments {
+			  user(id: 4) {
+				friends(first: 10) {
+				  ...friendFields
+				}
+				mutualFriends(first: 10) {
+				  ...friendFields
+				}
+			  }
+			}
 
-fragment friendFields on User {
-  id
-  name
-  profilePic(size: 50)
-}`)
+			fragment friendFields on User {
+			  id
+			  name
+			  profilePic(size: 50)
+			}`)
 
 		wants := []item{
 			{typ: itemQuery},
@@ -278,26 +280,26 @@ fragment friendFields on User {
 func TestLexNestedFragments(t *testing.T) {
 	Convey("Verify we can parse the sample fragmnt", t, func() {
 		l := lex("fragment", `
-query withNestedFragments {
-  user(id: 4) {
-    friends(first: 10) {
-      ...friendFields
-    }
-    mutualFriends(first: 10) {
-      ...friendFields
-    }
-  }
-}
+			query withNestedFragments {
+			  user(id: 4) {
+				friends(first: 10) {
+				  ...friendFields
+				}
+				mutualFriends(first: 10) {
+				  ...friendFields
+				}
+			  }
+			}
 
-fragment friendFields on User {
-  id
-  name
-  ...standardProfilePic
-}
+			fragment friendFields on User {
+			  id
+			  name
+			  ...standardProfilePic
+			}
 
-fragment standardProfilePic on User {
-  profilePic(size: 50)
-}`)
+			fragment standardProfilePic on User {
+			  profilePic(size: 50)
+			}`)
 
 		wants := []item{
 			{typ: itemQuery},
@@ -371,27 +373,27 @@ fragment standardProfilePic on User {
 func TestLexHackerNews(t *testing.T) {
 	Convey("Verify #lex on hn grammar", t, func() {
 		l := lex("simple", `
-query viewer() {
-	posts {
-		node {
-			author { id, name, favorite_color },
-			# any other post data you want
-		}
-	},
-	friends {
-		node {
-			id,
-			name,
-			favorite_color,
-		}
-	},
-	notifications {
-		node {
-			source { id, name, favorite_color },
-			# any other notification fields you want
-		}
-	},
-}`)
+			query viewer() {
+				posts {
+					node {
+						author { id, name, favorite_color },
+						# any other post data you want
+					}
+				},
+				friends {
+					node {
+						id,
+						name,
+						favorite_color,
+					}
+				},
+				notifications {
+					node {
+						source { id, name, favorite_color },
+						# any other notification fields you want
+					}
+				},
+			}`)
 
 		wants := []item{
 			{typ: itemQuery},
