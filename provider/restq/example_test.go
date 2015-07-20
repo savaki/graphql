@@ -8,7 +8,7 @@ import (
 )
 
 func ExampleGet() {
-	query := `query city: GET("http://api.openweathermap.org/data/2.5/weather?lat=35&lon=139") {
+	query := `query city: GET("http://api.openweathermap.org/data/2.5/weather?q=London") {
 		name
 		weather: main {
 			temperature: temp
