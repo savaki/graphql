@@ -62,6 +62,7 @@ const (
 	itemEllipses // fragment definition, '...'
 	itemTrue     // true
 	itemFalse    // false
+	itemComment  // indicates start of comment
 )
 
 var keywords = map[itemType]string{
@@ -72,6 +73,7 @@ var keywords = map[itemType]string{
 	itemTrue:     "true",
 	itemFalse:    "false",
 	itemOn:       "on",
+	itemComment:  "//",
 }
 
 const eof = -1
@@ -237,6 +239,14 @@ func lexRoot(l *lexer) stateFn {
 	switch {
 	case isSpace(r):
 		l.accept(whitespace)
+		l.ignore()
+		return lexRoot
+
+	case strings.HasPrefix(l.input[l.pos:], keywords[itemComment]):
+		l.acceptOrdered(keywords[itemComment])
+		l.acceptFn(func(r rune) bool {
+			return !isEndOfLine(r)
+		})
 		l.ignore()
 		return lexRoot
 
