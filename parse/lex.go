@@ -237,7 +237,7 @@ const (
 func lexRoot(l *lexer) stateFn {
 	r := l.peek()
 	switch {
-	case isSpace(r):
+	case isWhitespace(r):
 		l.accept(whitespace)
 		l.ignore()
 		return lexRoot
@@ -277,7 +277,7 @@ func lexQuery(l *lexer) stateFn {
 	l.emit(itemQuery)
 
 	// query must be followed by at least one whitespace
-	if !isSpace(l.peek()) {
+	if !isWhitespace(l.peek()) {
 		return l.errorf("query keyword must be followed by a whitespace")
 	}
 
@@ -290,7 +290,7 @@ func lexMutation(l *lexer) stateFn {
 	l.emit(itemMutation)
 
 	// query must be followed by at least one whitespace
-	if r := l.peek(); !isSpace(r) {
+	if r := l.peek(); !isWhitespace(r) {
 		return l.errorf("mutation keyword must be followed by a whitespace")
 	}
 
@@ -300,7 +300,7 @@ func lexMutation(l *lexer) stateFn {
 func lexField(l *lexer) stateFn {
 	r := l.peek()
 	switch {
-	case isSpace(r):
+	case isWhitespace(r):
 		l.accept(whitespace)
 		l.ignore()
 		return lexField
@@ -319,7 +319,7 @@ func lexField(l *lexer) stateFn {
 func lexAfterField(l *lexer) stateFn {
 	r := l.peek()
 	switch {
-	case isSpace(r):
+	case isWhitespace(r):
 		l.accept(whitespace)
 		l.ignore()
 		return lexAfterField
@@ -362,7 +362,7 @@ func lexAfterField(l *lexer) stateFn {
 func lexArgs(l *lexer) stateFn {
 	r := l.peek()
 	switch {
-	case isSpace(r):
+	case isWhitespace(r):
 		l.acceptRun(whitespace)
 		l.ignore()
 		return lexArgs
@@ -391,7 +391,7 @@ func lexArgs(l *lexer) stateFn {
 func lexArgValue(l *lexer) stateFn {
 	r := l.peek()
 	switch {
-	case isSpace(r):
+	case isWhitespace(r):
 		l.acceptRun(whitespace)
 		l.ignore()
 		return lexArgValue
@@ -426,7 +426,7 @@ func lexArgValue(l *lexer) stateFn {
 func lexSelection(l *lexer) stateFn {
 	r := l.peek()
 	switch {
-	case isSpace(r):
+	case isWhitespace(r):
 		l.acceptRun(whitespace)
 		l.ignore()
 		return lexSelection
@@ -445,7 +445,7 @@ func lexSelection(l *lexer) stateFn {
 func lexEndSelection(l *lexer) stateFn {
 	r := l.peek()
 	switch {
-	case isSpace(r):
+	case isWhitespace(r):
 		l.acceptRun(whitespace)
 		l.ignore()
 		return lexEndSelection
@@ -470,7 +470,7 @@ func lexFragment(l *lexer) stateFn {
 	l.emit(itemFragment)
 
 	// fragment must be followed by at least one whitespace
-	if r := l.peek(); !isSpace(r) {
+	if r := l.peek(); !isWhitespace(r) {
 		return l.errorf("fragment keyword must be followed by a whitespace")
 	}
 
@@ -480,7 +480,7 @@ func lexFragment(l *lexer) stateFn {
 func lexFragmentName(l *lexer) stateFn {
 	r := l.peek()
 	switch {
-	case isSpace(r):
+	case isWhitespace(r):
 		l.acceptRun(whitespace)
 		l.ignore()
 		return lexFragmentName
@@ -499,7 +499,7 @@ func lexFragmentName(l *lexer) stateFn {
 func lexOn(l *lexer) stateFn {
 	r := l.peek()
 	switch {
-	case isSpace(r):
+	case isWhitespace(r):
 		l.acceptRun(whitespace)
 		l.ignore()
 		return lexOn
@@ -517,7 +517,7 @@ func lexOn(l *lexer) stateFn {
 func lexFragmentType(l *lexer) stateFn {
 	r := l.peek()
 	switch {
-	case isSpace(r):
+	case isWhitespace(r):
 		l.acceptRun(whitespace)
 		l.ignore()
 		return lexFragmentType
@@ -582,7 +582,7 @@ func (l *lexer) scanNumber() bool {
 
 // isSpace reports whether r is a space character.
 // space characters are: space, tab, carriage-return (\r), line feed (\n), and comma
-func isSpace(r rune) bool {
+func isWhitespace(r rune) bool {
 	return r == ' ' || r == '\t' || r == '\n' || r == '\r' || r == ','
 }
 
