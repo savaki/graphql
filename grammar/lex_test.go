@@ -230,7 +230,7 @@ func TestLexDirective(t *testing.T) {
 	Convey("Verify #lex on grammar with fragments and conditionals", t, func() {
 		l := lex("variables", `
 			query hasConditionalFragment($condition: Boolean) {
-			  ...maybeFragment @include(if: $condition)
+			  ...maybeFragment @include(if: $condition) @solo
 			}
 			fragment maybeFragment on Query @include(if: $condition) {
 			  me {
@@ -257,6 +257,8 @@ func TestLexDirective(t *testing.T) {
 			{typ: itemColon},
 			{typ: itemVariable, val: "condition"},
 			{typ: itemRightParen},
+			{typ: itemAtSign},
+			{typ: itemName, val: "solo"},
 			{typ: itemRightCurly},
 
 			{typ: itemFragment},

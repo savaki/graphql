@@ -419,14 +419,19 @@ func lexDirective(l *lexer) stateFn {
 	l.acceptFn(isAlphaNumeric)
 	l.emit(itemName)
 
-	// (
-	if r := l.peek(); r != leftParen {
-		return l.errorf("directives must be followed by arguments")
+	// skip any whitespaces
+	if l.acceptRun(whitespace) > 0 {
+		l.ignore()
 	}
-	l.next()
-	l.emit(itemLeftParen)
 
-	return lexArgument
+	// optional arguments for directive (
+	if r := l.peek(); r == leftParen {
+		l.next()
+		l.emit(itemLeftParen)
+		return lexArgument
+	}
+
+	return lexAfterField
 }
 
 func lexArgument(l *lexer) stateFn {
