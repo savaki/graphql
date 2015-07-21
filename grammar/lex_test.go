@@ -100,6 +100,38 @@ func TestLexSimple(t *testing.T) {
 	})
 }
 
+func TestLexDefaultValue(t *testing.T) {
+	Convey("Verify #lex on grammar with default value", t, func() {
+		l := lex("default value", `
+			query sample($id: Int = 5) {
+				user {
+					firstName
+				}
+			}`)
+
+		wants := []item{
+			{typ: itemQuery},
+			{typ: itemName, val: "sample"},
+			{typ: itemLeftParen},
+			{typ: itemVariable, val: "id"},
+			{typ: itemColon},
+			{typ: itemIntType},
+			{typ: itemEqual},
+			{typ: itemIntValue, val: "5"},
+			{typ: itemRightParen},
+			{typ: itemLeftCurly},
+			{typ: itemName, val: "user"},
+			{typ: itemLeftCurly},
+			{typ: itemName, val: "firstName"},
+			{typ: itemRightCurly},
+			{typ: itemRightCurly},
+			{typ: itemEOF},
+		}
+
+		VerifyWants(l, wants)
+	})
+}
+
 func TestLexAlias(t *testing.T) {
 	Convey("Verify #lex on simple grammar", t, func() {
 		l := lex("simple", `

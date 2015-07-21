@@ -4,9 +4,9 @@ package grammar
 
 import "fmt"
 
-const _itemType_name = "itemErroritemEOFitemNameitemVariableitemLeftCurlyitemRightCurlyitemLeftParenitemRightParenitemAtSignitemColonitemCommaitemDotitemNilitemIntValueitemStringValueitemFloatValueitemKeyworditemQueryitemMutationitemFragmentitemEllipsesitemTrueitemFalseitemOnitemIntTypeitemFloatTypeitemBooleanTypeitemEnumTypeitemArrayTypeitemObjectType"
+const _itemType_name = "itemErroritemEOFitemNameitemVariableitemLeftCurlyitemRightCurlyitemLeftParenitemRightParenitemAtSignitemColonitemCommaitemDotitemNilitemEqualitemIntValueitemStringValueitemFloatValueitemKeyworditemQueryitemMutationitemFragmentitemEllipsesitemTrueitemFalseitemOnitemIntTypeitemFloatTypeitemBooleanTypeitemEnumTypeitemArrayTypeitemObjectType"
 
-var _itemType_index = [...]uint16{0, 9, 16, 24, 36, 49, 63, 76, 90, 100, 109, 118, 125, 132, 144, 159, 173, 184, 193, 205, 217, 229, 237, 246, 252, 263, 276, 291, 303, 316, 330}
+var _itemType_index = [...]uint16{0, 9, 16, 24, 36, 49, 63, 76, 90, 100, 109, 118, 125, 132, 141, 153, 168, 182, 193, 202, 214, 226, 238, 246, 255, 261, 272, 285, 300, 312, 325, 339}
 
 func (i itemType) String() string {
 	if i < 0 || i+1 >= itemType(len(_itemType_index)) {

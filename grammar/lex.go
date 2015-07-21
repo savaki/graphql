@@ -56,6 +56,7 @@ const (
 	itemComma      // the comma separating elements
 	itemDot        // the cursor, spelled '.'
 	itemNil        // the untyped nil constant, easiest to treat as a keyword
+	itemEqual      // equal sign
 
 	itemIntValue    // integer
 	itemStringValue // string
@@ -268,6 +269,7 @@ const (
 	colon       = ':'
 	plus        = '+'
 	minus       = '-'
+	equalSign   = '='
 	doubleQuote = '"'
 	escape      = '\\'
 	comma       = ','
@@ -293,17 +295,17 @@ func lexDocument(l *lexer) stateFn {
 	case isComment(r):
 		return l.ignoreComment(lexDocument)
 
-	case strings.HasPrefix(l.input[l.pos:], keywords[itemFragment]):
+	case l.hasPrefix(keywords[itemFragment]):
 		return lexFragment
 
-	case strings.HasPrefix(l.input[l.pos:], keywords[itemQuery]):
+	case l.hasPrefix(keywords[itemQuery]):
 		return lexQuery
 
-	case strings.HasPrefix(l.input[l.pos:], keywords[itemMutation]):
+	case l.hasPrefix(keywords[itemMutation]):
 		return lexMutation
 
 	case r == leftCurly:
-		return lexSelection
+		return lexSelectionSet
 
 	case r == eof:
 		l.emit(itemEOF)
@@ -372,10 +374,10 @@ func lexAfterField(l *lexer) stateFn {
 	case r == leftParen:
 		l.next()
 		l.emit(itemLeftParen)
-		return lexArgs
+		return lexArgument
 
 	case r == leftCurly:
-		return lexSelection
+		return lexSelectionSet
 
 	case r == rightCurly:
 		return lexEndSelection
@@ -385,7 +387,7 @@ func lexAfterField(l *lexer) stateFn {
 		l.emit(itemColon)
 		return lexField
 
-	case strings.HasPrefix(l.input[l.pos:], keywords[itemEllipses]):
+	case l.hasPrefix(keywords[itemEllipses]):
 		l.acceptOrdered(keywords[itemEllipses])
 		l.emit(itemEllipses)
 		return lexAfterField
@@ -424,17 +426,17 @@ func lexDirective(l *lexer) stateFn {
 	l.next()
 	l.emit(itemLeftParen)
 
-	return lexArgs
+	return lexArgument
 }
 
-func lexArgs(l *lexer) stateFn {
+func lexArgument(l *lexer) stateFn {
 	r := l.peek()
 	switch {
 	case isWhitespace(r):
-		return l.ignoreWhitespace(lexArgs)
+		return l.ignoreWhitespace(lexArgument)
 
 	case isComment(r):
-		return l.ignoreComment(lexArgs)
+		return l.ignoreComment(lexArgument)
 
 	case isAlpha(r):
 		return l.scanField(lexColon)
@@ -464,57 +466,40 @@ func lexColon(l *lexer) stateFn {
 	case r == colon:
 		l.next()
 		l.emit(itemColon)
-		return lexArgValue
+		return l.scanValue(lexDefaultValue)
 
 	default:
 		return l.errorf("expected colon")
 	}
 }
 
-func lexArgValue(l *lexer) stateFn {
+func lexDefaultValue(l *lexer) stateFn {
 	r := l.peek()
 	switch {
 	case isWhitespace(r):
-		return l.ignoreWhitespace(lexArgValue)
+		return l.ignoreWhitespace(lexDefaultValue)
 
 	case isComment(r):
-		return l.ignoreComment(lexArgValue)
+		return l.ignoreComment(lexDefaultValue)
 
-	case r == doubleQuote:
-		return l.scanString(lexArgs)
-
-	case r == plus || r == minus || isNumeric(r):
-		return l.scanNumber(lexArgs)
-
-	case r == dollar:
-		return l.scanVariable(lexArgs)
-
-	case strings.HasPrefix(l.input[l.pos:], keywords[itemTrue]):
-		l.acceptOrdered("true")
-		l.emit(itemTrue)
-		return lexArgs
-
-	case strings.HasPrefix(l.input[l.pos:], keywords[itemFalse]):
-		l.acceptOrdered("false")
-		l.emit(itemFalse)
-		return lexArgs
-
-	case isAlpha(r):
-		return l.scanType(lexArgs)
+	case r == equalSign:
+		l.next()
+		l.emit(itemEqual)
+		return l.scanValue(lexArgument)
 
 	default:
-		return l.errorf("unexpected arg value")
+		return lexArgument
 	}
 }
 
-func lexSelection(l *lexer) stateFn {
+func lexSelectionSet(l *lexer) stateFn {
 	r := l.peek()
 	switch {
 	case isWhitespace(r):
-		return l.ignoreWhitespace(lexSelection)
+		return l.ignoreWhitespace(lexSelectionSet)
 
 	case isComment(r):
-		return l.ignoreComment(lexSelection)
+		return l.ignoreComment(lexSelectionSet)
 
 	case r == leftCurly:
 		l.depth++
@@ -629,11 +614,15 @@ func lexAfterFragmentType(l *lexer) stateFn {
 		return lexDirective
 
 	case r == leftCurly:
-		return lexSelection
+		return lexSelectionSet
 
 	default:
 		return l.errorf("expected fragment type to be alpha numeric")
 	}
+}
+
+func (l *lexer) hasPrefix(word string) bool {
+	return strings.HasPrefix(l.input[l.pos:], word)
 }
 
 func (l *lexer) ignoreWhitespace(fn stateFn) stateFn {
@@ -651,6 +640,47 @@ func (l *lexer) ignoreComment(fn stateFn) stateFn {
 	l.acceptFn(isNotLineTerminator)
 	l.ignore()
 	return fn
+}
+
+func (l *lexer) scanValue(fn stateFn) stateFn {
+	r := l.peek()
+	switch {
+	case isWhitespace(r):
+		l.acceptRun(whitespace)
+		l.ignore()
+		return l.scanValue(fn)
+
+	case isComment(r):
+		l.next()
+		l.acceptFn(isNotLineTerminator)
+		l.ignore()
+		return l.scanValue(fn)
+
+	case r == doubleQuote:
+		return l.scanString(fn)
+
+	case r == plus || r == minus || isNumeric(r):
+		return l.scanNumber(fn)
+
+	case r == dollar:
+		return l.scanVariable(fn)
+
+	case strings.HasPrefix(l.input[l.pos:], keywords[itemTrue]):
+		l.acceptOrdered("true")
+		l.emit(itemTrue)
+		return fn
+
+	case strings.HasPrefix(l.input[l.pos:], keywords[itemFalse]):
+		l.acceptOrdered("false")
+		l.emit(itemFalse)
+		return fn
+
+	case isAlpha(r):
+		return l.scanType(fn)
+
+	default:
+		return l.errorf("illegal value")
+	}
 }
 
 func (l *lexer) scanField(fn stateFn) stateFn {
