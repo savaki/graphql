@@ -1,4 +1,4 @@
-package grammar
+package ast
 
 func Parse(q string) (*Document, error) {
 	l := lex("graph", q)

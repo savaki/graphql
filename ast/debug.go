@@ -1,4 +1,4 @@
-package grammar
+package ast
 
 import (
 	"encoding/json"

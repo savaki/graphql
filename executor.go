@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"io"
 
-	"github.com/savaki/graphql/grammar"
+	"github.com/savaki/graphql/ast"
 )
 
 type Executor struct {
@@ -18,7 +18,7 @@ func New(store Store) Executor {
 }
 
 func (e Executor) Handle(query string, w io.Writer) error {
-	doc, err := grammar.Parse(string(query))
+	doc, err := ast.Parse(string(query))
 	if err != nil {
 		return err
 	}
@@ -26,7 +26,7 @@ func (e Executor) Handle(query string, w io.Writer) error {
 	return writeDocument(w, e.Store, doc)
 }
 
-func writeDocument(w io.Writer, store Store, doc *grammar.Document) error {
+func writeDocument(w io.Writer, store Store, doc *ast.Document) error {
 	if !doc.HasDefaultQueryOnly() {
 		io.WriteString(w, "{")
 	}
@@ -46,7 +46,7 @@ func writeDocument(w io.Writer, store Store, doc *grammar.Document) error {
 	return nil
 }
 
-func writeOperation(w io.Writer, store Store, qOp *grammar.Operation) error {
+func writeOperation(w io.Writer, store Store, qOp *ast.Operation) error {
 	if qOp.Field.Name == "" {
 		return writeSelection(w, store, qOp.Field.Selection)
 	}
@@ -76,7 +76,7 @@ func writeOperation(w io.Writer, store Store, qOp *grammar.Operation) error {
 	return writeSelection(w, selection, qOp.Field.Selection)
 }
 
-func writeSelection(w io.Writer, selection Selection, qSelector *grammar.Selection) error {
+func writeSelection(w io.Writer, selection Selection, qSelector *ast.Selection) error {
 	io.WriteString(w, "{")
 	for index, qField := range qSelector.Fields {
 		ctx := &Context{Name: qField.Name}
@@ -95,7 +95,7 @@ func writeSelection(w io.Writer, selection Selection, qSelector *grammar.Selecti
 	return nil
 }
 
-func writeField(w io.Writer, field Field, qField *grammar.Field) error {
+func writeField(w io.Writer, field Field, qField *ast.Field) error {
 	io.WriteString(w, `"`)
 	io.WriteString(w, qField.Key())
 	io.WriteString(w, `":`)
@@ -112,7 +112,7 @@ func writeField(w io.Writer, field Field, qField *grammar.Field) error {
 	}
 }
 
-func writeValue(w io.Writer, field Field, qField *grammar.Field) error {
+func writeValue(w io.Writer, field Field, qField *ast.Field) error {
 	v, err := field.Value()
 	if err != nil {
 		return err

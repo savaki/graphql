@@ -4,7 +4,7 @@
 //
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
-package grammar
+package ast
 
 import (
 	"fmt"
@@ -45,18 +45,20 @@ type itemType int
 const (
 	itemError itemType = iota // error occurred; value is text of error
 	itemEOF
-	itemName       // named item
-	itemVariable   // variable
-	itemLeftCurly  // marks start of query block
-	itemRightCurly // right action delimiter
-	itemLeftParen  // '(' inside action
-	itemRightParen // ')' inside action
-	itemAtSign     // '@' directive
-	itemColon      // the : separating param name from param value
-	itemComma      // the comma separating elements
-	itemDot        // the cursor, spelled '.'
-	itemNil        // the untyped nil constant, easiest to treat as a keyword
-	itemEqual      // equal sign
+	itemName        // named item
+	itemVariable    // variable
+	itemLeftCurly   // marks start of query block
+	itemRightCurly  // right action delimiter
+	itemLeftParen   // '(' inside action
+	itemRightParen  // ')' inside action
+	itemLeftSquare  // '[' value
+	itemRightSquare // ']' value
+	itemAtSign      // '@' directive
+	itemColon       // the : separating param name from param value
+	itemComma       // the comma separating elements
+	itemDot         // the cursor, spelled '.'
+	itemNil         // the untyped nil constant, easiest to treat as a keyword
+	itemEqual       // equal sign
 
 	itemIntValue    // integer
 	itemStringValue // string
@@ -271,6 +273,8 @@ const (
 	minus       = '-'
 	equalSign   = '='
 	doubleQuote = '"'
+	leftSquare  = '['
+	rightSquare = ']'
 	escape      = '\\'
 	comma       = ','
 	leftParen   = '('
@@ -661,6 +665,11 @@ func (l *lexer) scanValue(fn stateFn) stateFn {
 		l.ignore()
 		return l.scanValue(fn)
 
+	case r == leftSquare:
+		l.next()
+		l.emit(itemLeftSquare)
+		return l.scanArray(fn)
+
 	case r == doubleQuote:
 		return l.scanString(fn)
 
@@ -685,6 +694,28 @@ func (l *lexer) scanValue(fn stateFn) stateFn {
 
 	default:
 		return l.errorf("illegal value")
+	}
+}
+
+func (l *lexer) scanArray(fn stateFn) stateFn {
+	r := l.peek()
+	switch {
+	case isWhitespace(r):
+		l.acceptRun(whitespace)
+		l.ignore()
+		return l.scanValue(fn)
+
+	case isComment(r):
+		l.next()
+		l.acceptFn(isNotLineTerminator)
+		l.ignore()
+		return l.scanValue(fn)
+
+	case r == rightSquare:
+		return fn
+
+	default:
+		return l.scanArray(fn)
 	}
 }
 
