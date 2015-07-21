@@ -4,7 +4,7 @@
 //
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
-package parse
+package grammar
 
 import (
 	"fmt"
@@ -255,7 +255,7 @@ func lex(name, input string) *lexer {
 
 // run runs the state machine for the lexer.
 func (l *lexer) run() {
-	for l.state = lexRoot; l.state != nil; {
+	for l.state = lexDocument; l.state != nil; {
 		l.state = l.state(l)
 	}
 }
@@ -284,23 +284,23 @@ const (
 	escapeCharacters = `"\/bfnrt` // see - https://github.com/facebook/graphql/blob/master/Section%208%20--%20Grammar.md
 )
 
-func lexRoot(l *lexer) stateFn {
+func lexDocument(l *lexer) stateFn {
 	r := l.peek()
 	switch {
 	case isWhitespace(r):
-		return l.ignoreWhitespace(lexRoot)
+		return l.ignoreWhitespace(lexDocument)
 
 	case isComment(r):
-		return l.ignoreComment(lexRoot)
+		return l.ignoreComment(lexDocument)
+
+	case strings.HasPrefix(l.input[l.pos:], keywords[itemFragment]):
+		return lexFragment
 
 	case strings.HasPrefix(l.input[l.pos:], keywords[itemQuery]):
 		return lexQuery
 
 	case strings.HasPrefix(l.input[l.pos:], keywords[itemMutation]):
 		return lexMutation
-
-	case strings.HasPrefix(l.input[l.pos:], keywords[itemFragment]):
-		return lexFragment
 
 	case r == leftCurly:
 		return lexSelection
@@ -541,7 +541,7 @@ func lexEndSelection(l *lexer) stateFn {
 		l.next()
 		l.emit(itemRightCurly)
 		if l.depth == 0 {
-			return lexRoot
+			return lexDocument
 		} else {
 			return lexAfterField
 		}

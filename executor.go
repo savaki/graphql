@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"io"
 
-	"github.com/savaki/graphql/parse"
+	"github.com/savaki/graphql/grammar"
 )
 
 type Executor struct {
@@ -18,7 +18,7 @@ func New(store Store) Executor {
 }
 
 func (e Executor) Handle(query string, w io.Writer) error {
-	doc, err := parse.Parse(string(query))
+	doc, err := grammar.Parse(string(query))
 	if err != nil {
 		return err
 	}
@@ -26,7 +26,7 @@ func (e Executor) Handle(query string, w io.Writer) error {
 	return writeDocument(w, e.Store, doc)
 }
 
-func writeDocument(w io.Writer, store Store, doc *parse.Document) error {
+func writeDocument(w io.Writer, store Store, doc *grammar.Document) error {
 	if !doc.HasDefaultQueryOnly() {
 		io.WriteString(w, "{")
 	}
@@ -46,7 +46,7 @@ func writeDocument(w io.Writer, store Store, doc *parse.Document) error {
 	return nil
 }
 
-func writeOperation(w io.Writer, store Store, qOp *parse.Operation) error {
+func writeOperation(w io.Writer, store Store, qOp *grammar.Operation) error {
 	if qOp.Field.Name == "" {
 		return writeSelection(w, store, qOp.Field.Selection)
 	}
@@ -76,7 +76,7 @@ func writeOperation(w io.Writer, store Store, qOp *parse.Operation) error {
 	return writeSelection(w, selection, qOp.Field.Selection)
 }
 
-func writeSelection(w io.Writer, selection Selection, qSelector *parse.Selection) error {
+func writeSelection(w io.Writer, selection Selection, qSelector *grammar.Selection) error {
 	io.WriteString(w, "{")
 	for index, qField := range qSelector.Fields {
 		ctx := &Context{Name: qField.Name}
@@ -95,7 +95,7 @@ func writeSelection(w io.Writer, selection Selection, qSelector *parse.Selection
 	return nil
 }
 
-func writeField(w io.Writer, field Field, qField *parse.Field) error {
+func writeField(w io.Writer, field Field, qField *grammar.Field) error {
 	io.WriteString(w, `"`)
 	io.WriteString(w, qField.Key())
 	io.WriteString(w, `":`)
@@ -112,7 +112,7 @@ func writeField(w io.Writer, field Field, qField *parse.Field) error {
 	}
 }
 
-func writeValue(w io.Writer, field Field, qField *parse.Field) error {
+func writeValue(w io.Writer, field Field, qField *grammar.Field) error {
 	v, err := field.Value()
 	if err != nil {
 		return err
