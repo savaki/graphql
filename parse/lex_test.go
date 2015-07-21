@@ -194,6 +194,66 @@ func TestLexVariables(t *testing.T) {
 	})
 }
 
+func TestLexDirective(t *testing.T) {
+	Convey("Verify #lex on grammar with fragments and conditionals", t, func() {
+		l := lex("variables", `
+			query hasConditionalFragment($condition: Boolean) {
+			  ...maybeFragment @include(if: $condition)
+			}
+			fragment maybeFragment on Query @include(if: $condition) {
+			  me {
+				name
+			  }
+			}`)
+
+		wants := []item{
+			{typ: itemQuery},
+			{typ: itemName, val: "hasConditionalFragment"},
+			{typ: itemLeftParen},
+			{typ: itemVariable, val: "condition"},
+			{typ: itemColon},
+			{typ: itemBooleanType},
+			{typ: itemRightParen},
+			{typ: itemLeftCurly},
+
+			{typ: itemEllipses},
+			{typ: itemName, val: "maybeFragment"},
+			{typ: itemAtSign},
+			{typ: itemName, val: "include"},
+			{typ: itemLeftParen},
+			{typ: itemName, val: "if"},
+			{typ: itemColon},
+			{typ: itemVariable, val: "condition"},
+			{typ: itemRightParen},
+			{typ: itemRightCurly},
+
+			{typ: itemFragment},
+			{typ: itemName, val: "maybeFragment"},
+			{typ: itemOn},
+			{typ: itemName, val: "Query"},
+			{typ: itemAtSign},
+			{typ: itemName, val: "include"},
+			{typ: itemLeftParen},
+			{typ: itemName, val: "if"},
+			{typ: itemColon},
+			{typ: itemVariable, val: "condition"},
+			{typ: itemRightParen},
+			{typ: itemLeftCurly},
+
+			{typ: itemName, val: "me"},
+			{typ: itemLeftCurly},
+			{typ: itemName, val: "name"},
+			{typ: itemRightCurly},
+
+			{typ: itemRightCurly},
+
+			{typ: itemEOF},
+		}
+
+		VerifyWants(l, wants)
+	})
+}
+
 func TestLexSimple2(t *testing.T) {
 	Convey("Verify #lex on empty grammar", t, func() {
 		l := lex("simple", `query bill { friends }`)

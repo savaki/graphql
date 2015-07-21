@@ -45,16 +45,17 @@ type itemType int
 const (
 	itemError itemType = iota // error occurred; value is text of error
 	itemEOF
-	itemName        // named item
-	itemVariable    // variable
-	itemLeftCurly   // marks start of query block
-	itemRightCurly  // right action delimiter
-	itemLeftParen   // '(' inside action
-	itemRightParen  // ')' inside action
-	itemColon       // the : separating param name from param value
-	itemComma       // the comma separating elements
-	itemDot         // the cursor, spelled '.'
-	itemNil         // the untyped nil constant, easiest to treat as a keyword
+	itemName       // named item
+	itemVariable   // variable
+	itemLeftCurly  // marks start of query block
+	itemRightCurly // right action delimiter
+	itemLeftParen  // '(' inside action
+	itemRightParen // ')' inside action
+	itemAtSign     // '@' directive
+	itemColon      // the : separating param name from param value
+	itemComma      // the comma separating elements
+	itemDot        // the cursor, spelled '.'
+	itemNil        // the untyped nil constant, easiest to treat as a keyword
 
 	itemIntValue    // integer
 	itemStringValue // string
@@ -262,6 +263,7 @@ func (l *lexer) run() {
 // state functions
 const (
 	dollar      = '$'
+	atSign      = '@'
 	dot         = '.'
 	colon       = ':'
 	plus        = '+'
@@ -364,6 +366,9 @@ func lexAfterField(l *lexer) stateFn {
 	case isComment(r):
 		return l.ignoreComment(lexAfterField)
 
+	case r == atSign:
+		return lexDirective
+
 	case r == leftParen:
 		l.next()
 		l.emit(itemLeftParen)
@@ -394,6 +399,32 @@ func lexAfterField(l *lexer) stateFn {
 	default:
 		return l.errorf("unexpected values after field")
 	}
+}
+
+func lexDirective(l *lexer) stateFn {
+	// @
+	if r := l.peek(); r != atSign {
+		return l.errorf("directives must begin with an '@'")
+	}
+	l.next()
+	l.emit(itemAtSign)
+
+	// name
+	if r := l.peek(); !isAlpha(r) {
+		return l.errorf("directive @ sign must be immediately followed by an alpha")
+	}
+	l.acceptFn(isAlpha)
+	l.acceptFn(isAlphaNumeric)
+	l.emit(itemName)
+
+	// (
+	if r := l.peek(); r != leftParen {
+		return l.errorf("directives must be followed by arguments")
+	}
+	l.next()
+	l.emit(itemLeftParen)
+
+	return lexArgs
 }
 
 func lexArgs(l *lexer) stateFn {
@@ -578,7 +609,27 @@ func lexFragmentType(l *lexer) stateFn {
 		return l.ignoreComment(lexFragmentType)
 
 	case isAlpha(r):
-		return l.scanField(lexSelection)
+		return l.scanField(lexAfterFragmentType)
+
+	default:
+		return l.errorf("expected fragment type to be alpha numeric")
+	}
+}
+
+func lexAfterFragmentType(l *lexer) stateFn {
+	r := l.peek()
+	switch {
+	case isWhitespace(r):
+		return l.ignoreWhitespace(lexAfterFragmentType)
+
+	case isComment(r):
+		return l.ignoreComment(lexAfterFragmentType)
+
+	case r == atSign:
+		return lexDirective
+
+	case r == leftCurly:
+		return lexSelection
 
 	default:
 		return l.errorf("expected fragment type to be alpha numeric")
